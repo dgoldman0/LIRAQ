@@ -42,6 +42,13 @@ names, not device descriptions.
 | `auditory` | Speech, earcons, sonification, music | Voice, audio detection |
 | `tactile` | Braille cells, haptic patterns, vibration | Braille input, physical switches |
 
+All three standard capabilities are first-class peers. The `auditory` and
+`tactile` capabilities have a normative surface-specific document language
+(SML — see [01-sml](../1D-UI/01-sml.md)) and a normative presentation language
+(CSL — see [02-csl](../1D-UI/02-csl.md)). The `visual` capability uses
+implementation-specific rendering; [12-dom-compatibility](12-dom-compatibility.md)
+provides non-normative guidance for browser-based visual surfaces.
+
 #### Composite Capabilities
 
 A surface may declare multiple capabilities:
@@ -148,6 +155,28 @@ differently by each surface capability:
 
 Surfaces MAY interpret arrangement hints differently than this table suggests.
 These are recommendations, not requirements.
+
+### 3.5 Auditory Projection Summary
+
+The auditory surface implements a 7-step projection pipeline that transforms
+the UIDL document into a navigable SML tree:
+
+1. Walk UIDL tree
+2. Resolve bound values (already evaluated by runtime)
+3. Evaluate `when` conditions (skip elements where `when` = false)
+4. Expand collections (already iterated by runtime)
+5. Select representation (pick `auditory` rep or `description` fallback)
+6. Apply presentation profile → generate CSL rules
+7. Produce SML tree (concrete values only — no expressions, no bindings)
+
+The resulting SML tree is a static snapshot of the interface. The auditory
+surface navigates this tree using the 1D cursor model defined in
+[01-sml](../1D-UI/01-sml.md) §6, styles it with CSL ([02-csl](../1D-UI/02-csl.md)), and
+encodes output as cues (tone, haptic, speech).
+
+See [14-auditory-surface](14-auditory-surface.md) for the full normative
+specification of the auditory surface type, including the UIDL→SML element
+mapping table, cue grammar, patch handling, and full-stack examples.
 
 ---
 

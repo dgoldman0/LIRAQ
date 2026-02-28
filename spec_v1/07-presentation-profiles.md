@@ -209,6 +209,14 @@ density:
 
 Reference profile for surfaces with `auditory` capability.
 
+> **CSL Bridge.** For auditory surfaces that use SML
+> ([01-sml](../1D-UI/01-sml.md)) and CSL ([02-csl](../1D-UI/02-csl.md)), the surface bridge
+> translates these YAML profile properties into CSL rules automatically.
+> See [14-auditory-surface](14-auditory-surface.md) §7 for the mapping
+> algorithm. Applications running on the auditory surface therefore do NOT
+> need to author CSL directly — the profile YAML below is sufficient.
+> Standalone SML applications that bypass UIDL author CSL directly instead.
+
 ```yaml
 profile:
   name: standard-auditory
@@ -282,6 +290,11 @@ states:
 
 Reference profile for surfaces with `tactile` capability (braille displays,
 haptic devices).
+
+> **SML Reuse.** SML documents may also be projected onto tactile surfaces
+> (e.g., braille devices) in the future. The same bridge pattern applies:
+> profile YAML is translated into CSL rules targeting tactile properties.
+> See [02-csl](../1D-UI/02-csl.md) §4.4 for haptic-specific CSL properties.
 
 ```yaml
 profile:

@@ -98,6 +98,11 @@ surface type.
 | Accommodations | [11-accommodations](11-accommodations.md) | User preference profiles, adaptation, navigation model |
 | DOM Compatibility | [12-dom-compatibility](12-dom-compatibility.md) | Mapping to browser DOM for visual-browser surfaces |
 | Rabbit Integration | [13-rabbit-integration](13-rabbit-integration.md) | Integration with the Rabbit P2P protocol |
+| SML | [01-sml](../1D-UI/01-sml.md) | Sequential Markup Language for auditory/haptic/1D surfaces (1D-UI spec) |
+| CSL | [02-csl](../1D-UI/02-csl.md) | Cue Stylesheet Language for auditory/haptic presentation (1D-UI spec) |
+| SOM | [03-sequential-object-model](../1D-UI/03-sequential-object-model.md) | Sequential Object Model — in-memory tree API (1D-UI spec) |
+| Inceptor | [04-inceptor](../1D-UI/04-inceptor.md) | 1D runtime: parsing, navigation, cue dispatch, I/O (1D-UI spec) |
+| Auditory Surface | [14-auditory-surface](14-auditory-surface.md) | Auditory surface projection and UIDL integration |
 
 ---
 
@@ -117,5 +122,13 @@ surface type.
 | **Presentation profile** | A set of styling rules scoped to surface capabilities |
 | **Accommodation profile** | User-declared preferences that modify projection behavior |
 | **Behavior graph** | A named set of conditional steps executed by the behavior engine |
+| **SML** | Sequential Markup Language — the surface-specific document language for auditory/haptic/1D surfaces |
+| **CSL** | Cue Stylesheet Language — the presentation language for auditory/haptic properties on SML documents |
+| **Cue** | A symbolic description of what a user should perceive at a navigation step (tone + haptic + motif + speech hint) |
+| **Earcon** | A short auditory motif that encodes meaning through pitch, rhythm, and timbre |
+| **Scope** | A navigable sub-sequence in an SML document (`seq`, `ring`, `gate`, `trap`) |
+| **Position** | An atomic landing point for the cursor in a 1D interface |
+| **SOM** | Sequential Object Model — the in-memory tree API for parsed SML documents (DOM + 1D extensions) |
+| **Inceptor** | The runtime that parses SML, applies CSL, manages navigation, and dispatches output — the 1D equivalent of a browser |
 
 

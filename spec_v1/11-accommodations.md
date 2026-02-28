@@ -228,6 +228,82 @@ shortcuts:
 Shortcuts are surface-specific (they apply to surfaces with keyboard input
 channels).
 
+### 5.5 Input Context Switching
+
+On 1D surfaces (auditory, tactile), the navigation model supports **input
+contexts** — modes that change how the same physical input channel is
+interpreted. The current context determines the meaning of next/prev/activate:
+
+| Context | Enter condition | Next/Prev meaning | Activate meaning | Exit |
+|---------|----------------|-------------------|------------------|------|
+| **Navigation** | Default | Move cursor between elements | Enter element / dispatch action | N/A |
+| **Text entry** | Activate an `<input>` or `<val kind="text">` | Move character cursor | Confirm text | Back |
+| **Slider** | Activate a `<range>` or `<val kind="range">` | Increment / decrement value | Confirm value | Back |
+| **Cycling** | Activate a `<selector>` or `<pick>` | Cycle through options | Confirm selection | Back |
+| **Menu** | Navigate into a scope | Move cursor within scope | Activate item | Back (exit scope) |
+| **Trapped** | Enter a `<trap>` or `role="dialog"` | Move cursor within trap | Activate item | Dismiss (if allowed) |
+
+Context transitions are **automatic** — they are triggered by the element type
+at the cursor position and the user's action. The runtime MUST manage context
+transitions without requiring DCS involvement.
+
+### 5.6 Focus Memory
+
+When the user navigates out of a scope and later returns, the surface SHOULD
+restore the cursor to its previous position within that scope. This is **focus
+memory**.
+
+Focus memory is governed by the `resume` attribute on SML scope elements:
+
+| Resume policy | Behavior |
+|--------------|----------|
+| `last` | Restore cursor to the position it held when the scope was last exited |
+| `first` | Always enter at the first position |
+| `none` | No memory — enter at the natural entry point (first, or as directed) |
+
+Focus memory is a per-scope stack. A runtime MUST support at least one level
+of focus memory per scope. It SHOULD support arbitrary depth for nested scope
+re-entry.
+
+On visual surfaces, focus memory maps to the standard attention restoration
+behavior (attention returns to the last attended child).
+
+### 5.7 Scope Announcements
+
+When the cursor enters or exits a scope boundary on a 1D surface, the runtime
+SHOULD produce a **scope announcement** — a cue that communicates the name and
+nature of the scope being entered or exited.
+
+Scope announcements are defined by the `<announce>` element in SML (see
+[01-sml](../1D-UI/01-sml.md)):
+
+| Trigger | Example announcement |
+|---------|---------------------|
+| Enter scope | "Inbox, 12 messages" |
+| Exit scope | (boundary earcon only, no speech by default) |
+| Change within scope | "New message from Alice" |
+
+On visual surfaces, scope entry is communicated spatially (the container becomes
+visible/prominent). The announcement mechanism is the 1D equivalent.
+
+### 5.8 Interrupt Handling and Return-to-Focus
+
+When an interrupt occurs (an alert, a dialog, or a high-priority announcement),
+the runtime MUST:
+
+1. **Save** the current cursor position and input context.
+2. **Switch** to the interrupt content (trap, alert lane, or dialog scope).
+3. **Confine** navigation to the interrupt scope until it is dismissed.
+4. **Restore** the saved cursor position and input context after dismissal.
+
+This is the **return-to-focus guarantee**: after handling an interrupt, the user
+is always returned to exactly where they were. No navigation state is lost.
+
+The guarantee applies to all surfaces. On visual surfaces it corresponds to
+focus returning to the previously attended element after a modal dialog closes.
+On auditory surfaces it restores the full context: scope position, input
+context, and focus memory stack.
+
 ---
 
 ## 6 Announcements
