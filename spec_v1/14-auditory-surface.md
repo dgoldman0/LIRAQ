@@ -217,6 +217,10 @@ The resolved cue is dispatched to output encoders:
 | Quiet | Cue (logged only) | No output |
 
 The active encoder set depends on the surface's `output-mode` configuration.
+When `output-mode` includes `braille` or `braille+speech`, the surface
+instantiates a **Braille Renderer**
+(see [05-braille-renderer](../1D-UI/05-braille-renderer.md)) alongside the
+Inceptor's temporal encoders. Both consume the same SOM tree.
 
 ### 5.4 Speech Model
 

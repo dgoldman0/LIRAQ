@@ -151,6 +151,10 @@ CSL supports the full CSS selector syntax.
 
 ### 3.6 Cue: Braille
 
+These properties are consumed by the **Braille Renderer**
+(see [05-braille-renderer](05-braille-renderer.md)), not by the Inceptor's
+temporal encoders.
+
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
 | `cue-braille-grade` | `0` \| `1` \| `2` \| `auto` | `auto` | Braille transcription grade (0 = computer, 1 = uncontracted, 2 = contracted, auto = grade 2 for text / grade 0 for values) |
