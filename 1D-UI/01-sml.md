@@ -93,6 +93,7 @@ A cue is a bundle of:
 - **Haptic** — vibration pattern, intensity
 - **Motif** — named earcon (short audio pattern)
 - **Speech hint** — whether speech is available
+- **Text** — cell content for braille or other textual displays
 
 SML declares cues two ways:
 1. **Structural** — `cue` attribute on elements, `<cue-def>` in head
@@ -483,7 +484,7 @@ Read-only indicator. A labeled value that is announced but not interactive.
 |-----------|----------|-------------|
 | `label` | Yes | Indicator label |
 | `value` | No | Current value (static default) |
-| `kind` | No | Display hint: `meter`, `percent`, `count`, `text` |
+| `kind` | No | Presentation hint: `meter`, `percent`, `count`, `text` |
 | `min`, `max` | No | Range bounds (for meter / percent kinds) |
 | `id`, `cue`, `class` | No | Standard |
 
@@ -507,7 +508,7 @@ Temporal counter. Declares a position whose value changes over time.
 | `value` | No | Starting value (seconds) |
 | `direction` | No | `up` or `down` (default: `down`) |
 | `interval` | No | Announce interval in seconds |
-| `format` | No | Display format: `mm:ss`, `hh:mm:ss`, `seconds` |
+| `format` | No | Output format: `mm:ss`, `hh:mm:ss`, `seconds` |
 | `alert-at` | No | Value at which to fire an interrupt alert |
 | `id`, `cue`, `class` | No | Standard |
 

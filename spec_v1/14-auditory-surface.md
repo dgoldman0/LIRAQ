@@ -28,7 +28,7 @@ The auditory surface declares the following standard capabilities:
 | Capability | Present |
 |------------|---------|
 | `auditory` | Yes — speech, earcons, sonification |
-| `tactile` | Yes — haptic feedback, vibration patterns |
+| `tactile` | Yes — haptic feedback, vibration patterns, refreshable braille |
 | `visual` | No |
 
 ### 2.2 Registration
@@ -52,9 +52,12 @@ output-mode = "audio+haptic"
 | Config key | Values | Description |
 |------------|--------|-------------|
 | `profile` | `<profile-name>` | Presentation profile to apply |
-| `output-mode` | `audio`, `haptic`, `audio+haptic`, `quiet` | Active output channels |
+| `output-mode` | `audio`, `haptic`, `audio+haptic`, `braille`, `braille+speech`, `quiet` | Active output channels |
 | `speech-engine` | `<engine-id>` | Text-to-speech backend identifier |
 | `device-type` | `speaker`, `headphone`, `braille` | Output device for CSL @media queries |
+| `braille-cell-count` | `<integer>` | Number of cells on connected braille display (auto-detected when possible) |
+| `braille-status-cells` | `<integer>` | Number of cells reserved for status indicators (default: 0) |
+| `braille-dot-config` | `6-dot` \| `8-dot` | Dot configuration of the display (default: `8-dot`) |
 
 ---
 
@@ -210,6 +213,7 @@ The resolved cue is dispatched to output encoders:
 | Audio | Cue tone + motif + envelope properties | Audio samples for playback |
 | Haptic | Cue haptic type + intensity + duration | Motor pattern for vibration |
 | Speech | Cue speech template + label + value | Text string for TTS engine |
+| Braille | Cue braille content template + grade + truncation | Dot patterns for refreshable display |
 | Quiet | Cue (logged only) | No output |
 
 The active encoder set depends on the surface's `output-mode` configuration.

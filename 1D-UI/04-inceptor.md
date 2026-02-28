@@ -59,12 +59,12 @@ on the same object model regardless of origin.
 │        └──────┬───────┘                                  │
 └───────────────┼──────────────────────────────────────────┘
                 │
-    ┌───────────┼───────────┐
-    ▼           ▼           ▼
-┌────────┐ ┌────────┐ ┌────────┐
-│ Audio  │ │ Haptic │ │ Speech │
-│ Device │ │ Device │ │ Engine │
-└────────┘ └────────┘ └────────┘
+    ┌───────────┼───────────┬───────────┐
+    ▼           ▼           ▼           ▼
+┌────────┐ ┌────────┐ ┌────────┐ ┌─────────┐
+│ Audio  │ │ Haptic │ │ Speech │ │ Braille │
+│ Device │ │ Device │ │ Engine │ │ Display │
+└────────┘ └────────┘ └────────┘ └─────────┘
 ```
 
 ### 2.1 Component Summary
@@ -202,6 +202,10 @@ semantic actions:
 | Braille | Space+Dot-4 | `next` |
 | Braille | Space+Dot-1 | `prev` |
 | Braille | Space+Dot-3+6 | `activate` |
+| Braille | Space+Dot-1+2+5+6 | `back` |
+| Braille | Space+Dot-2+4+5 | `pan-right` |
+| Braille | Space+Dot-2+5+6 | `pan-left` |
+| Braille | Routing key (cell N) | `jumpTo(cell-mapped-element)` or `move-edit-cursor(N)` |
 | Touch | Swipe right | `next` |
 | Touch | Swipe left | `prev` |
 | Touch | Double-tap | `activate` |
@@ -331,6 +335,113 @@ The speech encoder:
 
 When the surface's `output-mode` is `quiet`, the quiet encoder logs cue events
 without producing output. Useful for testing, debugging, and headless operation.
+
+### 6.5 Braille Encoder
+
+The braille encoder converts resolved cues into cell patterns for refreshable
+braille displays. Unlike audio and haptic encoders, which produce transient
+signals, the braille encoder maintains a **persistent cell array** — a spatial
+buffer that the user reads by touch until the next navigation event updates it.
+
+#### 6.5.1 Cell Array Model
+
+A braille display exposes a fixed-width row of cells, each cell being an 8-dot
+(or 6-dot) pattern.
+
+| Property | Description |
+|----------|-------------|
+| `cellCount` | Total number of cells on the display (typically 14–80) |
+| `statusCells` | Number of cells reserved for status indicators (typically 0–4, left side) |
+| `contentCells` | `cellCount − statusCells` — cells available for content |
+| `dotConfiguration` | `6-dot` or `8-dot` |
+
+The encoder partitions the cell array:
+
+```
+┌──────────┬───────────────────────────────────────────┐
+│ Status   │ Content                                    │
+│ (0–4)    │ (remaining cells)                          │
+└──────────┴───────────────────────────────────────────┘
+```
+
+**Status cells** show contextual indicators: scope depth, element type symbol,
+position index within scope (e.g., "3/12"), or alert/urgency flags.
+
+**Content cells** show the text representation of the focused element, derived
+from the element's label, detail, and value attributes.
+
+#### 6.5.2 Text Formatting Pipeline
+
+For each navigation step, the braille encoder generates the cell content:
+
+1. **Assemble text** — Combine the element's attributes according to the
+   CSL `cue-braille-content` property (default: `"{label} {value}"`).
+2. **Apply braille grade** — Translate the assembled text to the target
+   braille grade per `cue-braille-grade`:
+   - Grade 0: Computer braille (1:1 character-to-cell mapping).
+   - Grade 1: Uncontracted literary braille.
+   - Grade 2: Contracted braille (language-dependent contraction rules).
+   - `auto`: Grade 2 for natural-language text, Grade 0 for values, numbers,
+     and identifiers.
+3. **Truncate or pan** — If the translated text exceeds `contentCells`:
+   - `ellipsis`: Truncate and place a termination indicator in the last cell.
+   - `scroll`: Enable panning (see §6.5.3).
+   - `wrap`: Not applicable to single-row displays; reserved for future
+     multi-row devices.
+4. **Write cells** — Push the final dot patterns to the display hardware.
+
+#### 6.5.3 Panning
+
+When content exceeds the display width, the encoder maintains a **viewport
+offset** into the full cell buffer:
+
+| Property | Description |
+|----------|-------------|
+| `viewportOffset` | Zero-based index of the first content cell currently shown |
+| `totalCells` | Total number of cells in the full translated content |
+
+Panning is triggered by input actions:
+
+| Action | Effect |
+|--------|--------|
+| `pan-right` | Advance `viewportOffset` by `contentCells` (or remaining, whichever is smaller) |
+| `pan-left` | Retreat `viewportOffset` by `contentCells` (or to 0) |
+
+Any cursor movement resets `viewportOffset` to 0.
+
+#### 6.5.4 Cursor Cell
+
+When the user is in a text-entry or slider input context, the encoder displays
+a **cursor cell** — a cell whose dots 7 and 8 (bottom row) are raised, or
+which blinks, to indicate the edit position. The representation is controlled
+by `cue-braille-cursor`.
+
+#### 6.5.5 Routing Keys
+
+Refreshable braille displays provide one routing key per cell. Pressing a
+routing key maps to `jumpTo` the character or element represented at that cell
+position. The encoder maintains a **cell-to-element map** that resolves which
+SOM node or character offset corresponds to each cell.
+
+| Context | Routing key effect |
+|---------|--------------------|
+| `navigation` | Jump to the element whose label occupies that cell region (if multiple elements are shown) |
+| `text-entry` | Move the edit cursor to the character at that cell position |
+| `slider` / `cycling` | No effect (single element fills the display) |
+
+#### 6.5.6 Status Cell Content
+
+Status cells use compact braille symbols:
+
+| Indicator | Cell pattern | Meaning |
+|-----------|-------------|---------|
+| Scope depth | Dots 2-3-5-6 repeated per level | Number of scopes deep |
+| Element type | First letter of element type (e.g., "a" for `<act>`) | Element kind |
+| Position | Numeric: "3/12" | Position within scope |
+| Alert flag | Dots 1-2-3-4-5-6 (full cell) | Pending interrupt |
+
+Implementations MAY customize status cell usage. The status cell model is
+advisory.
 
 ---
 
@@ -482,7 +593,7 @@ A conforming Inceptor MUST:
 8. Handle interrupt content with state save/restore.
 9. Apply accommodation overrides during cue resolution and input processing.
 10. Accept SOM mutations from external sources and handle all side effects.
-11. Produce output through at least one encoder (audio, haptic, or speech).
+11. Produce output through at least one encoder (audio, haptic, speech, or braille).
 12. Fire SOM interaction events with three-phase dispatch per [03-sequential-object-model](03-sequential-object-model.md) §8.
 13. Execute default actions for interaction events unless canceled.
 14. Support the confirmation flow for `<act confirm="true">`.
@@ -508,7 +619,8 @@ web browser. In this configuration:
 - Audio output uses Web Audio API.
 - Haptic output uses Vibration API (where available).
 - Speech output uses Web Speech API.
-- Input events come from browser keyboard/pointer/touch events.
+- Braille output uses WebHID API (for USB/Bluetooth refreshable displays).
+- Input events come from browser keyboard/pointer/touch/HID events.
 
 This is one likely implementation path. The inceptor need not be a separate
 native application — it can be a library that shares a host process with other

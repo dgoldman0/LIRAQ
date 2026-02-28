@@ -149,7 +149,18 @@ CSL supports the full CSS selector syntax.
 | `cue-speech-pause-before` | `<ms>` | `0` | Pause before speech |
 | `cue-speech-pause-after` | `<ms>` | `0` | Pause after speech |
 
-### 3.6 Cue: Urgency & Boundary
+### 3.6 Cue: Braille
+
+| Property | Values | Default | Description |
+|----------|--------|---------|-------------|
+| `cue-braille-grade` | `0` \| `1` \| `2` \| `auto` | `auto` | Braille transcription grade (0 = computer, 1 = uncontracted, 2 = contracted, auto = grade 2 for text / grade 0 for values) |
+| `cue-braille-content` | `<template-string>` | `"{label} {value}"` | Template for assembling cell content from element attributes |
+| `cue-braille-cursor` | `dots-7-8` \| `blink` \| `none` | `dots-7-8` | Edit-position indicator style on the braille display |
+| `cue-braille-truncation` | `ellipsis` \| `scroll` \| `wrap` | `scroll` | Overflow strategy when content exceeds available cells |
+| `cue-braille-status` | `depth` \| `type` \| `position` \| `none` \| `<template-string>` | `position` | What information status cells display |
+| `cue-braille-literary` | `true` \| `false` | `true` | Whether to apply literary braille formatting (capitalization indicators, number signs). When false, raw dot patterns are used. |
+
+### 3.7 Cue: Urgency & Boundary
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -157,7 +168,7 @@ CSL supports the full CSS selector syntax.
 | `cue-interrupt` | `never` \| `polite` \| `assertive` \| `immediate` | `polite` | When this element may interrupt |
 | `cue-boundary` | `none` \| `scope` \| `jump` | `none` | Boundary crossing signal type |
 
-### 3.7 Timing & Transitions
+### 3.8 Timing & Transitions
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -166,7 +177,7 @@ CSL supports the full CSS selector syntax.
 | `cue-transition-duration` | `<ms>` | `0` | Transition duration |
 | `cue-transition-timing` | `linear` \| `ease` \| `ease-in` \| `ease-out` \| `cubic-bezier(...)` | `ease` | Easing function |
 
-### 3.8 Animations
+### 3.9 Animations
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -178,14 +189,14 @@ CSL supports the full CSS selector syntax.
 | `cue-animation-timing` | (same as transition-timing) | `ease` | Easing function |
 | `cue-animation-play-state` | `running` \| `paused` | `running` | Play state |
 
-### 3.9 Custom Properties
+### 3.10 Custom Properties
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
 | `--*` | any value | — | User-defined custom property |
 | `var(--name)` | — | — | Reference a custom property value |
 
-### 3.10 Counters
+### 3.11 Counters
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -240,7 +251,17 @@ Adapt cue styling to device capabilities, user preferences, and system state:
 }
 
 @media (device-type: braille) {
-  * { cue-tone: none; cue-haptic: none; }
+  * {
+    cue-tone: none;
+    cue-haptic: none;
+    cue-motif: none;
+    cue-braille-grade: auto;
+    cue-braille-truncation: scroll;
+    cue-speech: on-demand;
+  }
+  ind[kind=meter] {
+    cue-braille-content: "{label}: {value}/{max}";
+  }
 }
 
 @media (urgency-mode: do-not-disturb) {
@@ -322,6 +343,7 @@ Child elements inherit these from their parent unless overridden:
 
 - `cue-speech`, `cue-speech-voice`, `cue-speech-rate`, `cue-speech-pitch`,
   `cue-speech-volume`
+- `cue-braille-grade`, `cue-braille-cursor`, `cue-braille-literary`
 - `cue-volume`
 - `nav-wrap`
 - Custom properties (`--*`)
@@ -332,6 +354,7 @@ These must be explicitly set on each element:
 
 - All `cue-tone-*`, `cue-motif`, `cue-haptic-*`, `cue-boundary`,
   `cue-urgency` properties
+- `cue-braille-content`, `cue-braille-truncation`, `cue-braille-status`
 - `traversal`, `presence`
 - `nav-skip`, `nav-depth`, `nav-order`, `nav-shortcut`
 - `cue-transition-*`, `cue-animation-*`
@@ -455,13 +478,18 @@ trap {
   alert:not([level=critical]) { traversal: none; }
 }
 
-/* Braille device — no audio, no haptic */
+/* Braille device — tactile text output, audio and haptic off */
 @media (device-type: braille) {
   * {
     cue-tone: none;
     cue-haptic: none;
     cue-motif: none;
-    cue-speech: auto;
+    cue-braille-grade: auto;
+    cue-braille-truncation: scroll;
+    cue-speech: on-demand;
+  }
+  ind[kind=meter] {
+    cue-braille-content: "{label}: {value}/{max}";
   }
 }
 
@@ -476,7 +504,7 @@ trap {
 
 ## 9 Property Summary
 
-**~55 properties** across 10 groups:
+**~63 properties** across 11 groups:
 
 | Group | Count | Scope |
 |-------|-------|-------|
@@ -485,9 +513,10 @@ trap {
 | Cue: tone / audio | 16 | Auditory feedback parameters |
 | Cue: haptic | 4 | Vibration feedback parameters |
 | Cue: speech | 8 | Speech synthesis parameters |
+| Cue: braille | 6 | Refreshable braille display parameters |
 | Cue: urgency & boundary | 3 | Interrupt priority and boundary signals |
 | Timing & transitions | 4 | Property transition animation |
 | Animations | 7 | Keyframe-based cue animation |
 | Custom properties | 2 | User-defined variables |
 | Counters | 2 | Sequential counting |
-| **Total** | **~57** | |
+| **Total** | **~63** | |

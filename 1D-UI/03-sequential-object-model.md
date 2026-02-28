@@ -336,6 +336,7 @@ A **ResolvedCue** bundles the concrete presentation properties for one node:
 | Haptic | `hapticType`, `hapticIntensity`, `hapticDuration`, `hapticPattern` | Vibration characteristics |
 | Motif | `motif`, `motifVariant` | Named earcon from the motif registry |
 | Speech | `speechTemplate`, `speechRole`, `speechRate`, `speechPitch`, `speechVolume` | TTS characteristics |
+| Braille | `brailleGrade`, `brailleContent`, `brailleCursor`, `brailleTruncation`, `brailleStatus`, `brailleLiterary` | Refreshable braille display characteristics |
 | Boundary | `boundaryCue`, `boundaryMotif` | Cue when entering/exiting this element's scope |
 | Urgency | `urgency`, `interruptBehavior` | Priority classification |
 | Timing | `cueDelay`, `cueFadeIn`, `cueFadeOut` | Temporal envelope |
