@@ -101,8 +101,8 @@ surface type.
 | SML | [01-sml](../1D-UI/01-sml.md) | Sequential Markup Language for auditory/haptic/1D surfaces (1D-UI spec) |
 | CSL | [02-csl](../1D-UI/02-csl.md) | Cue Stylesheet Language for auditory/haptic presentation (1D-UI spec) |
 | SOM | [03-sequential-object-model](../1D-UI/03-sequential-object-model.md) | Sequential Object Model — in-memory tree API (1D-UI spec) |
-| Inceptor | [04-inceptor](../1D-UI/04-inceptor.md) | 1D temporal runtime: parsing, navigation, cue dispatch, audio/haptic/speech I/O (1D-UI spec) |
-| Braille Renderer | [05-braille-renderer](../1D-UI/05-braille-renderer.md) | 1D spatial-text renderer: SOM tree → refreshable braille display (1D-UI spec) |
+| Inceptor | [04-inceptor](../1D-UI/04-inceptor.md) | Temporal channel engine: cue dispatch → audio / haptic-motor output (1D-UI spec) |
+| Inscriptor | [05-inscriptor](../1D-UI/05-inscriptor.md) | Tactile-text channel engine: SOM tree → refreshable braille / pin-array display (1D-UI spec) |
 | Auditory Surface | [14-auditory-surface](14-auditory-surface.md) | Auditory surface projection and UIDL integration |
 
 ---
@@ -125,12 +125,12 @@ surface type.
 | **Behavior graph** | A named set of conditional steps executed by the behavior engine |
 | **SML** | Sequential Markup Language — the surface-specific document language for auditory/haptic/1D surfaces |
 | **CSL** | Cue Stylesheet Language — the presentation language for auditory/haptic properties on SML documents |
-| **Cue** | A symbolic description of what a user should perceive at a navigation step (tone + haptic + motif + speech hint) |
+| **Cue** | A symbolic description of what a user should perceive at a navigation step — grouped by I/O channel: audio (tone, motif, speech), haptic motor, and tactile-text |
 | **Earcon** | A short auditory motif that encodes meaning through pitch, rhythm, and timbre |
 | **Scope** | A navigable sub-sequence in an SML document (`seq`, `ring`, `gate`, `trap`) |
 | **Position** | An atomic landing point for the cursor in a 1D interface |
-| **SOM** | Sequential Object Model — the in-memory tree API for parsed SML documents (DOM + 1D extensions) |
-| **Inceptor** | The temporal runtime that parses SML, applies CSL, manages navigation, and produces audio/haptic/speech output — the 1D equivalent of a browser |
-| **Braille Renderer** | The spatial-text renderer that consumes the SOM tree and produces cell patterns for refreshable braille displays — a peer to the Inceptor |
+| **SOM** | Sequential Object Model — the in-memory tree API for parsed SML documents; owns the shared I/O channel model, input router, and processing loop |
+| **Inceptor** | The temporal channel engine that consumes the SOM tree and produces audio and haptic-motor output — one of two peer channel engines |
+| **Inscriptor** | The tactile-text channel engine that consumes the SOM tree and produces cell patterns for refreshable braille / pin-array displays — peer to the Inceptor |
 
 

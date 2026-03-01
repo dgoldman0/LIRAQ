@@ -213,13 +213,13 @@ The resolved cue is dispatched to output encoders:
 | Audio | Cue tone + motif + envelope properties | Audio samples for playback |
 | Haptic | Cue haptic type + intensity + duration | Motor pattern for vibration |
 | Speech | Cue speech template + label + value | Text string for TTS engine |
-| Braille | Cue braille content template + grade + truncation | Dot patterns for refreshable display |
+| Tactile-text | Cue braille content template + grade + truncation | Dot patterns for refreshable display |
 | Quiet | Cue (logged only) | No output |
 
 The active encoder set depends on the surface's `output-mode` configuration.
 When `output-mode` includes `braille` or `braille+speech`, the surface
-instantiates a **Braille Renderer**
-(see [05-braille-renderer](../1D-UI/05-braille-renderer.md)) alongside the
+instantiates an **Inscriptor**
+(see [05-inscriptor](../1D-UI/05-inscriptor.md)) alongside the
 Inceptor's temporal encoders. Both consume the same SOM tree.
 
 ### 5.4 Speech Model

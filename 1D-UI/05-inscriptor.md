@@ -1,4 +1,4 @@
-# 05 — Braille Renderer
+# 05 — Inscriptor
 
 **1D-UI Specification**
 
@@ -6,64 +6,68 @@
 
 ## 1 Purpose
 
-The **Braille Renderer** is a spatial-text output engine for SML documents. It
-renders the SOM tree to a refreshable braille display — a fixed-width array of
-tactile cells that the user reads by touch.
+The **Inscriptor** is the spatial channel engine for 1D interfaces. It reads
+resolved cues from the SOM's CueMap and produces output for the **tactile-text**
+I/O channel (see
+[03-sequential-object-model](03-sequential-object-model.md) §7).
 
-The Braille Renderer is a **peer** to the Inceptor
-(see [04-inceptor](04-inceptor.md)), not a component within it. Both consume
-the same SOM tree (see [03-sequential-object-model](03-sequential-object-model.md))
-and both read resolved cue properties from the CSL cascade
-(see [02-csl](02-csl.md)). They differ in what they produce:
+The tactile-text channel has a spatial output model: a fixed-width array of
+persistent cells, each an independently controllable dot pattern. Content is
+written to cells and remains visible until the next update. Navigation means
+updating the cell array to show new content, not producing a fleeting signal.
 
-| Engine | Output model | Temporal character |
-|--------|-------------|-------------------|
-| Inceptor | Audio stream, haptic pulses, speech | **Transient** — signals exist on a timeline, then are gone |
-| Braille Renderer | Cell array of dot patterns | **Persistent** — content remains on the display until the next update |
+This is fundamentally different from the temporal output model used by the
+Inceptor (see [04-inceptor](04-inceptor.md)), which drives the audio and
+haptic motor channels. The Inceptor produces signals on a timeline — tones
+that play and vanish, vibrations that pulse and stop. The Inscriptor produces
+a persistent rendering that the user reads at their own pace.
 
-This distinction is fundamental, not incidental. A timeline needs lane mixing,
-ducking, interrupt fade-in/fade-out, and cue sequencing. A cell array needs
-a viewport, panning, character-level addressing, and a cell-to-element map.
-These are different output paradigms that share a common input model.
+Both engines are **peers**. Both attach to the same SOM tree and CueMap. Both
+receive the same cursor events and lane routing. Each provides a complete,
+self-sufficient interface to the SML document through its channel's physical
+medium.
 
 ### 1.1 Shared Foundation
 
-The Braille Renderer shares the entire 1D navigation model:
+The Inscriptor shares the entire 1D navigation model defined by the SOM:
 
 - **SML** — the same document markup
-- **CSL** — the same cascade; braille properties (§3.6 of
-  [02-csl](02-csl.md)) are resolved alongside tone, haptic, and speech
+- **CSL** — the same cascade; tactile-text properties (§3.5 of
+  [02-csl](02-csl.md)) are resolved alongside audio and haptic motor
   properties
 - **SOM** — the same in-memory tree, cursor, focus stack, input context
 - **Navigation primitives** — next, prev, enter, back, jumpTo
+- **Input router** — tactile-text channel adapters feed the shared cursor (SOM §9)
+- **Lane table** — the same priority routing, expressed spatially
 
-The split occurs at the output boundary. The Inceptor reads tone/haptic/speech
-properties from the CueMap and dispatches to audio/haptic/speech encoders. The
-Braille Renderer reads braille properties from the same CueMap and renders to
-a cell array.
+The split occurs at the output boundary. The Inceptor reads audio/haptic
+properties from the CueMap and dispatches to temporal encoders. The Inscriptor
+reads tactile-text properties from the same CueMap and renders to a cell array.
 
-### 1.2 Relationship to Inceptor
+### 1.2 Independent Operation
 
-An implementation MAY run both the Inceptor and the Braille Renderer
-simultaneously against the same SOM tree. In this configuration:
+An implementation MAY run the Inscriptor alone, with no audio or haptic output.
+In this configuration the Inscriptor is the sole channel engine. The user
+navigates entirely through tactile-text I/O: reading cell content, pressing
+routing keys, entering braille chords. Speech may optionally be requested
+through the audio channel if a speaker is available (see SOM §7.4,
+`tactile-text+speech` configuration).
 
-- Navigation input (from braille chords or any other source) moves the shared
-  cursor.
-- The Inceptor produces temporal cues for the new position.
-- The Braille Renderer updates the cell array for the new position.
-- The user perceives both outputs in parallel.
-
-Alternatively, an implementation MAY run the Braille Renderer alone, with no
-audio output. In this case the Braille Renderer drives the cursor itself using
-the same SOM navigation API.
+An implementation MAY also run the Inscriptor simultaneously with the Inceptor
+(see SOM §7.2). In this configuration, a single cursor movement produces
+temporal output (audio cues, haptic pulses) AND spatial output (cell update)
+in parallel.
 
 ---
 
 ## 2 Architecture
 
 ```
+                    Resolved Cue (from SOM CueMap)
+                              │
+                              ▼
 ┌────────────────────────────────────────────────────────────┐
-│                    Braille Renderer                         │
+│                        Inscriptor                          │
 │                                                            │
 │  ┌─────────────────┐  ┌───────────────────────┐           │
 │  │  Cell Composer   │  │  Braille Translator   │           │
@@ -89,10 +93,11 @@ the same SOM navigation API.
            │                               │
            ▼                               ▼
     ┌─────────────┐                ┌──────────────┐
-    │  Braille    │                │  Input from  │
-    │  Display    │                │  Display HID │
-    │  (cells)    │                │  (routing +  │
-    │             │                │   chords)    │
+    │  Pin Array  │                │  Input from  │
+    │  (braille   │                │  Display HID │
+    │   display / │                │  (routing +  │
+    │   tactile   │                │   chords +   │
+    │   device)   │                │   dot entry) │
     └─────────────┘                └──────────────┘
 ```
 
@@ -110,7 +115,7 @@ the same SOM navigation API.
 
 ## 3 Cell Array Model
 
-A refreshable braille display exposes a fixed-width row of cells. Each cell is
+The tactile-text channel outputs to a fixed-width row of cells. Each cell is
 an 8-dot (or 6-dot) pattern — a 2×4 (or 2×3) grid of individually raisable
 pins.
 
@@ -160,7 +165,7 @@ Implementations MAY define additional status indicators.
 
 ## 4 Rendering Pipeline
 
-When the SOM cursor moves to a new position, the Braille Renderer executes:
+When the SOM cursor moves to a new position, the Inscriptor executes:
 
 ### 4.1 Text Assembly
 
@@ -219,8 +224,8 @@ is pushed to hardware.
 
 ## 5 Viewport and Panning
 
-Content frequently exceeds the physical display width. The Braille Renderer
-maintains a viewport into the full cell buffer.
+Content frequently exceeds the physical display width. The Inscriptor maintains
+a viewport into the full cell buffer.
 
 ### 5.1 Viewport State
 
@@ -250,14 +255,14 @@ The CSL `cue-braille-truncation` property controls overflow behavior:
 |-------|----------|
 | `scroll` | Enable panning. Full content is rendered to the buffer; the viewport shows one page at a time. |
 | `ellipsis` | Truncate content at `visibleCells − 1` and place a dots-1-2-6 (⠣) termination indicator in the last cell. No panning. |
-| `wrap` | Reserved for future multi-row braille displays. On single-row displays, falls back to `scroll`. |
+| `wrap` | Reserved for future multi-row tactile-text displays. On single-row displays, falls back to `scroll`. |
 
 ---
 
 ## 6 Cursor Cell
 
-When the user is in a text-entry or slider input context, the renderer displays
-a **cursor cell** — a cell that marks the current edit position.
+When the user is in a text-entry or slider input context, the Inscriptor
+displays a **cursor cell** — a cell that marks the current edit position.
 
 ### 6.1 Cursor Representations
 
@@ -283,9 +288,9 @@ a proportional representation of the range.
 
 ## 7 Routing Keys
 
-Refreshable braille displays provide one routing key per cell — a button
-directly above or below each cell. Pressing a routing key is a positional
-action: "I want to interact with what's at THIS cell."
+Tactile-text displays provide one routing key per cell — a button directly
+above or below each cell. Pressing a routing key is a positional action:
+"I want to interact with what's at THIS cell."
 
 ### 7.1 Routing Key Semantics
 
@@ -301,7 +306,7 @@ The Cell-Element Map resolves each cell to a SOM node or character offset:
 
 ### 7.2 Cell-Element Map
 
-The renderer builds a map during each render cycle:
+The Inscriptor builds a map during each render cycle:
 
 ```
 Cell index → { node: SOMElement, charOffset: number }
@@ -315,29 +320,23 @@ implemented), different cell ranges map to different nodes.
 
 ## 8 Input Processing
 
-The Braille Renderer handles input from the braille display's physical
-controls. These fall into two categories:
+The Inscriptor handles input from the tactile-text channel's physical controls.
+Input falls into two categories: shared navigation actions and
+channel-specific actions.
 
-### 8.1 Navigation Chords
+### 8.1 Shared Navigation
 
 Standard braille display chords produce navigation semantic actions. These are
-fed to the shared SOM cursor — the same cursor the Inceptor uses:
+fed to the shared SOM cursor — the same cursor the Inceptor uses. The chord-to-
+action mapping is defined in the SOM's channel adapters (see SOM §9.2).
 
-| Chord | Semantic action |
-|-------|----------------|
-| Space+Dot-4 | `next` |
-| Space+Dot-1 | `prev` |
-| Space+Dot-3+6 | `activate` |
-| Space+Dot-1+2+5+6 | `back` |
-| Space+Dot-1+2+3 / Space+Dot-4+5+6 | `speak-current` / `speak-detail` |
+Navigational chords go through the SOM's InputContext interpreter and result in
+cursor movement and SOM events. The Inscriptor then renders the new position.
 
-These chords produce the same semantic actions as keyboard arrows or voice
-commands. They go through the SOM's InputContext interpreter and result in
-cursor movement and SOM events.
+### 8.2 Channel-Specific Actions
 
-### 8.2 Renderer-Specific Actions
-
-These actions are meaningful only when a braille display is present:
+These actions are meaningful only when a tactile-text device is present and are
+handled by the Inscriptor directly:
 
 | Input | Action |
 |-------|--------|
@@ -347,16 +346,16 @@ These actions are meaningful only when a braille display is present:
 | Dot entry (dots 1–6) | Character input during `text-entry` context |
 
 Panning and routing do not move the SOM cursor. They operate within the
-Braille Renderer's viewport and cell-element map.
+Inscriptor's viewport and cell-element map.
 
 ### 8.3 Braille Text Entry
 
-When the SOM InputContext is `text-entry`, the Braille Renderer interprets
-six-key chord entry as character input:
+When the SOM InputContext is `text-entry`, the Inscriptor interprets six-key
+chord entry as character input:
 
 1. User presses dots simultaneously (e.g., dots 1+2+4 = "f").
-2. Renderer translates the dot pattern to a Unicode character using the active
-   braille input table (which respects `cue-braille-grade`).
+2. Inscriptor translates the dot pattern to a Unicode character using the
+   active braille input table (which respects `cue-braille-grade`).
 3. Character is dispatched as a `value-change` event on the SOM, identical to
    keyboard character input.
 
@@ -365,11 +364,30 @@ abstraction.
 
 ---
 
-## 9 Scope Listing Mode
+## 9 Interrupt Handling
 
-On wide displays (40+ cells), the Braille Renderer MAY display a condensed
-view of the current scope — showing multiple elements' labels separated by
-delimiters:
+When an interrupt arrives (from the SOM's lane routing, see SOM §8):
+
+1. The Inscriptor **saves** the current cell buffer and viewport state.
+2. The Inscriptor **clears** content cells and renders the interrupt's content
+   (alert label, trap options).
+3. When the interrupt is dismissed, the Inscriptor **restores** the saved
+   buffer.
+
+For `<trap>` interrupts, the Inscriptor shows the trap's children as navigable
+content, with routing keys addressing the trap's options.
+
+The Inscriptor does not duck, fade, or mix — it **replaces**. This is the
+spatial equivalent of the Inceptor's temporal interrupt handling. Where the
+Inceptor fades audio and snapshots a timeline position, the Inscriptor saves
+and restores a cell buffer. Different medium, equivalent semantics.
+
+---
+
+## 10 Scope Listing Mode
+
+On wide displays (40+ cells), the Inscriptor MAY display a condensed view of
+the current scope — showing multiple elements' labels separated by delimiters:
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -386,26 +404,9 @@ practical mode.
 
 ---
 
-## 10 Interrupt Handling
-
-When an interrupt arrives (from the SOM's lane routing):
-
-1. The renderer **saves** the current cell buffer and viewport state.
-2. The renderer **clears** content cells and renders the interrupt's content
-   (alert label, trap options).
-3. When the interrupt is dismissed, the renderer **restores** the saved buffer.
-
-For `<trap>` interrupts, the renderer shows the trap's children as navigable
-content, with routing keys addressing the trap's options.
-
-The Braille Renderer does not duck, fade, or mix — it replaces. This is
-the spatial-text equivalent of the Inceptor's temporal interrupt handling.
-
----
-
 ## 11 Accommodation Application
 
-Braille-specific accommodation preferences modify rendering behavior:
+Tactile-text-specific accommodation preferences modify rendering behavior:
 
 | Preference | Effect |
 |-----------|--------|
@@ -415,29 +416,49 @@ Braille-specific accommodation preferences modify rendering behavior:
 | `braille-status-cells` | Override number of status cells |
 
 These enter the CSL cascade as accommodation overrides (highest priority),
-matching the pattern in [04-inceptor](04-inceptor.md) §7.
+matching the same pattern used by the Inceptor's accommodation application
+(see [04-inceptor](04-inceptor.md) §7).
 
 ---
 
 ## 12 LIRAQ Integration
 
-When running within a LIRAQ runtime, the Braille Renderer participates in the
-same integration model as the Inceptor:
+When running within a LIRAQ runtime, the Inscriptor participates in the same
+integration model as the Inceptor:
 
-- The SOM tree is produced by the auditory surface bridge
-  (see [14-auditory-surface](../spec_v1/14-auditory-surface.md)).
-- SOM events (cursor-move, activate, value-commit, etc.) are forwarded to the
-  LIRAQ runtime by the bridge.
-- The Braille Renderer does not interact with LIRAQ directly — it reads the
-  SOM tree and writes to the display. It is as decoupled from LIRAQ as the
-  Inceptor is.
+### 12.1 Bridge Connection
+
+The SOM tree is produced by the auditory surface bridge
+(see [14-auditory-surface](../spec_v1/14-auditory-surface.md)). The Inscriptor
+attaches to this tree and reads tactile-text cue properties from the CueMap. It
+does not interact with the LIRAQ bridge directly — it observes SOM events.
+
+### 12.2 Event Forwarding
+
+SOM events (cursor-move, activate, value-commit, etc.) are forwarded to the
+LIRAQ runtime by the bridge's event listeners. The Inscriptor does not
+participate in this forwarding — it is purely an output consumer, the same as
+the Inceptor.
+
+### 12.3 Attention Synchronization
+
+When the LIRAQ runtime issues `set-attention`, the SOM runtime translates it
+to `cursor.jumpTo(id)`. The Inscriptor responds by rendering the new position's
+content to the cell array, just as the Inceptor responds by playing the new
+position's audio cue.
+
+### 12.4 Independence
+
+The Inscriptor is a self-contained channel engine. It can be replaced, upgraded,
+or run in a separate process. The interface between the SOM and the Inscriptor
+is: SOM event observation + CueMap property reads. This is identical to the
+interface between the SOM and the Inceptor.
 
 ---
 
 ## 13 Browser Interop
 
-A Braille Renderer MAY be implemented in JavaScript running inside a web
-browser:
+An Inscriptor MAY be implemented in JavaScript running inside a web browser:
 
 - Cell output uses the **WebHID API** to communicate with USB/Bluetooth
   refreshable braille displays.
@@ -446,8 +467,8 @@ browser:
   in-memory DOM.
 
 This enables dual output — audio cues from the Inceptor via Web Audio API,
-simultaneous braille rendering via WebHID — from a single browser-hosted
-LIRAQ runtime.
+simultaneous tactile-text rendering from the Inscriptor via WebHID — from a
+single browser-hosted LIRAQ runtime.
 
 ---
 
@@ -455,27 +476,44 @@ LIRAQ runtime.
 
 ### 14.1 Requirements
 
-A conforming Braille Renderer MUST:
+A conforming Inscriptor MUST:
 
-1. Consume a SOM tree and read resolved cue properties from the CueMap.
-2. Render content cells from element attributes using the `cue-braille-content`
-   template.
-3. Support Grade 0 (computer) and Grade 1 (uncontracted) braille translation.
-4. Implement viewport panning when content exceeds display width.
-5. Implement the cursor cell in text-entry input context.
-6. Maintain a cell-element map for routing key resolution.
-7. Handle interrupt content with buffer save/restore.
-8. Accept navigation chords and translate them to SOM cursor operations.
-9. Accept panning and routing key input.
-10. Apply braille-specific accommodation overrides.
+1. Attach to a SOM tree and read resolved cues from the CueMap.
+2. Extract tactile-text channel properties (`brailleGrade`, `brailleContent`,
+   `brailleCursor`, `brailleTruncation`, `brailleStatus`, `brailleLiterary`)
+   from resolved cues.
+3. Render content cells from element attributes using the `cue-braille-content`
+   template (§4.1).
+4. Support Grade 0 (computer) and Grade 1 (uncontracted) braille translation
+   (§4.2).
+5. Insert literary formatting indicators when `cue-braille-literary` is true
+   (§4.3).
+6. Implement viewport panning when content exceeds display width (§5).
+7. Implement the cursor cell in text-entry and slider input contexts (§6).
+8. Maintain a cell-element map for routing key resolution (§7.2).
+9. Process routing key input with context-appropriate semantics (§7.1).
+10. Process panning input for viewport navigation (§8.2).
+11. Handle interrupt content with buffer save/restore (§9).
+12. Apply tactile-text-specific accommodation overrides (§11).
+13. Respond to SOM events (`cursor-move`, `scope-enter`, `scope-exit`,
+    `context-enter`, `context-exit`, `interrupt-start`, `interrupt-end`) by
+    updating the cell array.
+14. Operate independently of the Inceptor — the Inscriptor MUST function
+    correctly with or without a peer temporal engine.
 
 ### 14.2 Optional Features
 
-A conforming Braille Renderer MAY:
+A conforming Inscriptor MAY:
 
 1. Support Grade 2 (contracted) braille translation.
-2. Implement scope listing mode on wide displays.
-3. Support braille text entry via six-key chord input.
+2. Implement scope listing mode on wide displays (§10).
+3. Support braille text entry via six-key chord input (§8.3).
 4. Support auto-panning for long content.
-5. Support multi-row braille displays.
+5. Support multi-row tactile-text displays.
 6. Auto-detect display properties from connected hardware.
+
+### 14.3 Browser Hosting
+
+An Inscriptor implemented as a browser-hosted library MUST use standard web
+APIs (WebHID) and MUST NOT require browser extensions or native plugins for
+core functionality.

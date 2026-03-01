@@ -8,8 +8,8 @@
 
 The Sequential Object Model (SOM) is the in-memory tree API for parsed SML
 documents. It is to SML what the DOM is to HTML: the programmatic interface
-through which runtimes, inceptors, and scripts create, traverse, query, and
-mutate a live SML document.
+through which runtimes, channel engines, and scripts create, traverse, query,
+and mutate a live SML document.
 
 SML (see [01-sml](01-sml.md)) defines a serialization format — angle-bracket
 markup. The SOM defines what that markup becomes once parsed: a tree of typed
@@ -41,6 +41,7 @@ underlying substrate and expose the SOM as an extended interface.
 | — | Input context state |
 | — | Resolved cue map (computed presentation per node) |
 | — | Lane routing table |
+| — | I/O channel model |
 
 ### 1.2 Why Not Just DOM?
 
@@ -52,9 +53,9 @@ DOM is necessary but not sufficient. The gap:
    of last visited position. This is structurally different from HTML focus.
 
 2. **DOM has no computed cues.** The CSSOM gives you the resolved presentational
-   properties of every element. The SOM needs the equivalent: the resolved cue properties
-   (tone, haptic, motif, speech template) of every node, computed from the CSL
-   cascade. This is the **Cue Map**.
+   properties of every element. The SOM needs the equivalent: the resolved cue
+   properties (audio, haptic motor, tactile-text) of every node, computed from
+   the CSL cascade. This is the **Cue Map**.
 
 3. **DOM has no input context.** HTML forms handle input implicitly — focus an
    `<input>`, type. SML requires an explicit state machine that changes the
@@ -62,9 +63,14 @@ DOM is necessary but not sufficient. The gap:
    slider, cycling, trapped). This lives on the SOM.
 
 4. **DOM mutation assumes rendering.** When you mutate the HTML DOM, the browser
-   schedules a re-render. When you mutate the SOM, the inceptor must
+   schedules a re-render. When you mutate the SOM, channel engines must
    recompute affected cues, re-evaluate scope announcements, and potentially
    interrupt or redirect the cursor. The mutation side effects are different.
+
+5. **DOM has no I/O channel model.** The SOM defines three bidirectional
+   physical I/O channels (audio, haptic motor, tactile-text) and routes cue
+   properties and input events through them. DOM has no concept of parallel
+   output modalities or input channel routing.
 
 ---
 
@@ -86,7 +92,8 @@ The root. Analogous to `Document` in DOM.
 | `focusStack` | FocusStack | The scope tracking stack (see §4) |
 | `inputContext` | InputContext | Current input interpretation mode (see §5) |
 | `cueMap` | CueMap | Resolved cue properties per node (see §6) |
-| `lanes` | LaneTable | Output channel routing (see §7) |
+| `channels` | ChannelSet | Active I/O channels (see §7) |
+| `lanes` | LaneTable | Output routing (see §8) |
 | `version` | string | SML version from `<sml version>` |
 | `lang` | string | Default language from `<sml lang>` |
 
@@ -159,7 +166,7 @@ Not all SOM nodes are navigable (cursor-landable). The rules:
 
 A node with `hidden="true"` is removed from the navigable tree entirely.
 A node with `disabled="true"` is navigable (the cursor lands on it, the user
-hears the disabled cue) but cannot be activated.
+perceives the disabled cue) but cannot be activated.
 
 ---
 
@@ -202,9 +209,9 @@ Every cursor movement emits an event on the SOMDocument:
 | `boundary-hit` | Cursor bumps a scope boundary | `{scope, edge, behavior}` |
 | `jump` | Cursor jumps to a non-adjacent element | `{from, to}` |
 
-These events are the hooks that the inceptor (see
-[04-inceptor](04-inceptor.md)) uses to trigger cue playback,
-announcements, and scope transition effects.
+These events are the hooks that channel engines
+(see [04-inceptor](04-inceptor.md), [05-inscriptor](05-inscriptor.md))
+use to trigger output, announcements, and scope transition effects.
 
 ---
 
@@ -328,15 +335,34 @@ properties — the result of running the CSL cascade (see [02-csl](02-csl.md)).
 
 ### 6.1 Resolved Cue
 
-A **ResolvedCue** bundles the concrete presentation properties for one node:
+A **ResolvedCue** bundles the concrete presentation properties for one node.
+Properties are grouped by the I/O channel they address (see §7). Properties
+that apply across channels are grouped separately.
 
-| Property Group | Properties | Description |
-|---------------|------------|-------------|
-| Tone | `tone`, `duration`, `waveform`, `envelope`, `volume`, `pan` | Audio cue characteristics |
-| Haptic | `hapticType`, `hapticIntensity`, `hapticDuration`, `hapticPattern` | Vibration characteristics |
+#### Audio channel
+
+| Sub-group | Properties | Description |
+|-----------|------------|-------------|
+| Tone | `tone`, `duration`, `waveform`, `envelope`, `volume`, `pan` | Synthesized audio cue characteristics |
 | Motif | `motif`, `motifVariant` | Named earcon from the motif registry |
-| Speech | `speechTemplate`, `speechRole`, `speechRate`, `speechPitch`, `speechVolume` | TTS characteristics |
-| Braille | `brailleGrade`, `brailleContent`, `brailleCursor`, `brailleTruncation`, `brailleStatus`, `brailleLiterary` | Refreshable braille display characteristics |
+| Speech | `speechTemplate`, `speechRole`, `speechRate`, `speechPitch`, `speechVolume` | TTS characteristics (linguistic content delivered through audio hardware) |
+
+#### Haptic motor channel
+
+| Properties | Description |
+|------------|-------------|
+| `hapticType`, `hapticIntensity`, `hapticDuration`, `hapticPattern` | Vibration characteristics |
+
+#### Tactile-text channel
+
+| Properties | Description |
+|------------|-------------|
+| `brailleGrade`, `brailleContent`, `brailleCursor`, `brailleTruncation`, `brailleStatus`, `brailleLiterary` | Refreshable braille display characteristics |
+
+#### Cross-channel
+
+| Group | Properties | Description |
+|-------|------------|-------------|
 | Boundary | `boundaryCue`, `boundaryMotif` | Cue when entering/exiting this element's scope |
 | Urgency | `urgency`, `interruptBehavior` | Priority classification |
 | Timing | `cueDelay`, `cueFadeIn`, `cueFadeOut` | Temporal envelope |
@@ -367,16 +393,95 @@ change), the CueMap invalidates affected entries:
 | CSL stylesheet change | Entire tree |
 
 Invalidated entries are recomputed lazily (on next access) or eagerly (before
-next cue playback), at the implementation's discretion. The inceptor MUST
-ensure cues are current before playback.
+next output), at the implementation's discretion. Channel engines MUST
+ensure cues are current before producing output.
 
 ---
 
-## 7 Lane Table
+## 7 I/O Channels
 
-The **LaneTable** routes content to output channels.
+A 1D interface communicates with the user through **three bidirectional physical
+I/O channels**. Each channel is defined by its hardware, not its content. No
+channel is primary. Each may operate independently or in combination with others.
 
-### 7.1 Standard Lanes
+### 7.1 Channel Definitions
+
+| Channel | Output hardware | What it produces | Input hardware | What it receives |
+|---------|----------------|-----------------|----------------|-----------------|
+| **Audio** | Speaker, headphone | Tones, earcons, motifs, speech | Microphone | Voice commands |
+| **Haptic motor** | Vibration motor | Patterns, pulses, rumbles | Buttons, switches, touch surfaces | Presses, holds, gestures |
+| **Tactile-text** | Pin array (refreshable braille display) | Cell patterns, dot patterns | Routing keys, chord keys, dot-entry buttons | Positional routing, character entry |
+
+Speech is not a fourth channel. It is **linguistic content delivered through
+audio hardware** — the audio channel carries both nonverbal signals (tones,
+earcons) and verbal signals (speech). This parallels the tactile-text channel,
+which carries both spatial indicators (status cells, cursor overlays) and
+linguistic content (grade-2 contracted text).
+
+### 7.2 Channel Engines
+
+Each channel is served by a **channel engine** — a runtime component that reads
+resolved cues from the CueMap (§6), produces output for its channel's hardware,
+and processes input from its channel's devices.
+
+| Channel engine | Channels served | Output model | Spec |
+|---------------|----------------|-------------|------|
+| **Inceptor** | Audio + haptic motor | Temporal — signals on a timeline that come and go | [04-inceptor](04-inceptor.md) |
+| **Inscriptor** | Tactile-text | Spatial — persistent content in a fixed-width cell array | [05-inscriptor](05-inscriptor.md) |
+
+The Inceptor serves two channels because audio and haptic motor share a
+temporal output model: signals are synthesized, mixed on a timeline, faded,
+ducked, and sequenced. The Inscriptor serves one channel because tactile-text
+has a fundamentally different output model: a fixed-width array of persistent
+cells with viewport panning, character-level addressing, and buffer
+save/restore.
+
+An implementation MAY run both engines simultaneously against the same SOM
+tree. In this configuration, a single cursor movement produces temporal output
+(audio cues, haptic pulses) from the Inceptor AND spatial output (cell update)
+from the Inscriptor, in parallel.
+
+An implementation MAY also run either engine alone.
+
+### 7.3 Channel Independence
+
+Channels are peers. Each channel:
+
+- Has its own resolved cue properties in the CueMap (§6.1).
+- Has its own CSL property group (see [02-csl](02-csl.md) §3).
+- Has its own accommodation overrides.
+- Has its own output model (temporal or spatial).
+- Has its own input devices that produce shared semantic actions.
+
+The SOM is the shared model that all channels read from and write to. The
+cursor, focus stack, input context, and event model are shared across channels.
+The CueMap holds properties for ALL channels — each engine reads only the
+properties relevant to its channel(s).
+
+### 7.4 Channel Selection
+
+The active channel set is determined by the surface configuration
+(see [14-auditory-surface](../spec_v1/14-auditory-surface.md) §2.3):
+
+| Configuration | Active channels | Active engines |
+|--------------|----------------|----------------|
+| `audio` | Audio | Inceptor |
+| `haptic` | Haptic motor | Inceptor |
+| `audio+haptic` | Audio + haptic motor | Inceptor |
+| `tactile-text` | Tactile-text | Inscriptor |
+| `tactile-text+speech` | Tactile-text + audio (speech subset) | Inscriptor + Inceptor (speech only) |
+| `all` | Audio + haptic motor + tactile-text | Inceptor + Inscriptor |
+| `quiet` | None | Quiet encoder (logging only) |
+
+---
+
+## 8 Lane Table
+
+The **LaneTable** routes content to priority levels. Lanes are a cross-channel
+concept: every active channel interprets lane assignments through its own
+output model.
+
+### 8.1 Standard Lanes
 
 | Lane | Priority | Content |
 |------|----------|---------|
@@ -384,7 +489,7 @@ The **LaneTable** routes content to output channels.
 | `background` | Low | Ambient status, periodic indicators, `<tick>` updates |
 | `interrupt` | Preemptive | Alerts, confirmations, `<alert>` elements |
 
-### 7.2 Lane Routing
+### 8.2 Lane Routing
 
 Content assignment to lanes:
 
@@ -397,28 +502,208 @@ Content assignment to lanes:
 | Navigation boundary cues | `foreground` |
 | `<tick>` periodic updates | `background` |
 
-### 7.3 Lane Mixing Rules
+### 8.3 Lane Behavior Per Channel
 
-When multiple lanes have content simultaneously:
+Each channel expresses lane priority through its own medium:
 
-| Scenario | Behavior |
-|----------|----------|
-| `foreground` + `background` | Background ducks (volume reduced) or pauses |
-| `interrupt` + anything | Interrupt preempts — all other lanes pause |
-| `background` + `background` | Mixed at equal priority, or queued |
+| Lane transition | Audio channel | Haptic motor channel | Tactile-text channel |
+|----------------|---------------|---------------------|---------------------|
+| Interrupt preempts foreground | Fade out foreground, play interrupt audio | Suspend foreground pattern, play interrupt pulse | Save cell buffer, render interrupt content |
+| Foreground + background | Background ducks (volume reduced) or pauses | Background patterns suppressed | N/A (single display surface) |
+| Interrupt ends | Restore foreground, fade in | Resume foreground pattern | Restore saved cell buffer |
+| Background during idle | Plays at normal volume | Plays ambient patterns | N/A |
 
-Lane mixing semantics are defined by the inceptor (see
-[04-inceptor](04-inceptor.md) §5).
+Lane mixing semantics specific to the temporal channels are defined by the
+Inceptor (see [04-inceptor](04-inceptor.md) §4). Interrupt handling specific
+to the tactile-text channel is defined by the Inscriptor
+(see [05-inscriptor](05-inscriptor.md) §9).
 
 ---
 
-## 8 Input Event Model
+## 9 Input Model
+
+### 9.1 Input Router
+
+The SOM defines a shared input model. Raw events from any input device —
+regardless of which I/O channel the device belongs to — are translated to
+**semantic actions** and dispatched to the shared cursor and context engine.
+
+```
+Raw Input Event (any channel)
+      │
+      ▼
+┌──────────────────┐
+│ Channel adapter   │  ← device-specific translation
+│ (raw → semantic)  │
+└────────┬─────────┘
+         │ semantic action
+         ▼
+┌──────────────────┐
+│  InputContext     │  ← shared; determines meaning based on state
+│  interpreter     │
+└────────┬─────────┘
+         │ navigation / interaction action
+         ▼
+┌──────────────────┐
+│  Cursor /        │
+│  Context engine  │  ← shared SOM state, fires events
+└──────────────────┘
+```
+
+### 9.2 Channel Adapters
+
+Each input device type has an adapter that maps device-specific events to
+semantic actions. Semantic actions are channel-independent — a `next` from a
+keyboard, a voice command, a braille chord, and a switch press all produce the
+same semantic action.
+
+#### Audio channel input (microphone / voice)
+
+| Raw event | Semantic action |
+|----------|----------------|
+| "Next" | `next` |
+| "Back" | `back` |
+| "Select" / "Activate" | `activate` |
+| "Go to {label}" | `jumpTo(id)` |
+
+#### Haptic motor channel input (buttons, switches, touch)
+
+| Raw event | Semantic action |
+|----------|----------------|
+| Arrow Right / Arrow Down | `next` |
+| Arrow Left / Arrow Up | `prev` |
+| Enter | `activate` |
+| Escape | `back` |
+| Tab | `next` (alternate) |
+| Switch press (1-switch, during auto-scan) | `activate` |
+| Switch 1 (2-switch) | `next` |
+| Switch 2 (2-switch) | `activate` |
+| Swipe right | `next` |
+| Swipe left | `prev` |
+| Double-tap | `activate` |
+
+#### Tactile-text channel input (routing keys, chords)
+
+| Raw event | Semantic action |
+|----------|----------------|
+| Space+Dot-4 | `next` |
+| Space+Dot-1 | `prev` |
+| Space+Dot-3+6 | `activate` |
+| Space+Dot-1+2+5+6 | `back` |
+| Space+Dot-1+2+3 | `speak-current` |
+| Space+Dot-4+5+6 | `speak-detail` |
+
+Tactile-text input devices also generate **channel-specific actions** (panning,
+routing key resolution, dot entry) that are handled by the Inscriptor directly
+— see [05-inscriptor](05-inscriptor.md) §8.
+
+### 9.3 Extended Semantic Actions
+
+Beyond the five navigation primitives, the SOM recognizes additional semantic
+actions that any channel adapter may produce:
+
+| Action | Response |
+|--------|----------|
+| `speak-current` | Request speech of the current element's label |
+| `speak-detail` | Request speech of label + detail + state description |
+| `speak-where` | Request speech of scope path |
+| `speak-what-changed` | Request speech of last mutation description |
+
+These produce speech through the audio channel regardless of which input
+channel initiated them.
+
+### 9.4 Auto-Scan Mode
+
+When accommodation preferences enable switch scanning (see
+[01-sml](01-sml.md)), the runtime runs an auto-scan timer:
+
+1. Advance cursor to next position at `switch-scan-interval`.
+2. Dispatch cue for each position to active channel engines.
+3. When the user presses the switch, activate the current position.
+4. Scanning mode (`linear`, `group`, `row-column`) determines scope traversal
+   strategy during auto-advance.
+
+---
+
+## 10 Processing Model
+
+The SOM defines the shared processing model for 1D documents. This model is
+channel-independent — it describes how documents are loaded, how navigation
+proceeds, and how mutations are handled. Channel engines attach to this model
+and produce channel-specific output.
+
+### 10.1 Document Loading
+
+When a 1D runtime loads an SML document:
+
+```
+1. Parse SML text → SOM tree
+2. Parse all <link rel="stylesheet"> and <style> → CSL stylesheets
+3. Resolve <cue-def> elements → named cue definitions
+4. Compute initial CueMap (cascade all CSL against full tree)
+5. Initialize Cursor at document.body (root <seq>) first navigable child
+6. Push root scope onto FocusStack
+7. Set InputContext to "navigation"
+8. Notify channel engines of document-open
+9. Channel engines produce initial output for cursor's first position
+10. Begin input processing loop
+```
+
+### 10.2 Navigation Loop
+
+The core loop:
+
+```
+LOOP:
+  1. Wait for input event from any channel adapter (§9)
+  2. Translate input event to semantic action via InputContext
+  3. Execute action on Cursor (next, prev, enter, back, jumpTo, activate)
+  4. If cursor moved:
+     a. Fire navigation event (three-phase dispatch per §11)
+     b. If not canceled: compute cue for new position from CueMap
+     c. Compute any boundary/scope-transition cues
+     d. Dispatch resolved cue to all active channel engines
+     e. Each channel engine produces output for its channel(s)
+  5. If activation occurred:
+     a. Fire interaction event (activate, value-commit, toggle, etc.)
+     b. If not canceled: execute default action (update SOM attribute)
+     c. Fire context-enter event if input context changes
+  6. If mutation occurred (default action, external patch):
+     a. Update SOM tree
+     b. Invalidate CueMap entries
+     c. Check cursor validity
+     d. Fire change announcements if applicable
+     e. Notify channel engines of mutation
+  7. GOTO LOOP
+```
+
+### 10.3 Cue Dispatch
+
+When the cursor moves to a new position, the runtime dispatches cue information
+to all active channel engines. Each engine interprets the resolved cue through
+its own output model:
+
+| Cue phase | Audio channel (Inceptor) | Haptic motor channel (Inceptor) | Tactile-text channel (Inscriptor) |
+|-----------|-------------------------|-------------------------------|----------------------------------|
+| Movement | Play movement earcon (step, wrap, jump) | Fire movement haptic (tick, bump) | Update status cells |
+| Identity | Play element tone with waveform/envelope | Fire identity haptic pattern | Render element text to cell array |
+| State | Apply pitch/timbre modifiers for state flags | Adjust intensity for state flags | Append state indicators to content |
+| Boundary | Play boundary motif (if scope crossed) | Fire boundary haptic | Update scope depth in status cells |
+| Speech | Speak (only if explicitly requested) | — | — |
+
+The entire cue dispatch for a single navigation step occurs once. All active
+channel engines receive the same resolved cue and produce their channel-specific
+outputs in parallel.
+
+---
+
+## 11 Event Model
 
 The SOM defines an event model for user interactions — the bridge between
 "user pressed activate on a `<val>`" and "application logic responds." This is
 the 1D equivalent of DOM Events (`click`, `change`, `input`, `submit`).
 
-### 8.1 Event Architecture
+### 11.1 Event Architecture
 
 SOM events follow the DOM Event model's three-phase dispatch:
 
@@ -429,7 +714,7 @@ SOM events follow the DOM Event model's three-phase dispatch:
 Listeners can attach at any phase. Events can be canceled (`preventDefault()`)
 during capture or target phases to suppress default behavior.
 
-### 8.2 Interaction Events
+### 11.2 Interaction Events
 
 These events fire when the user interacts with position elements:
 
@@ -443,7 +728,7 @@ These events fire when the user interacts with position elements:
 | `toggle` | `<val kind="toggle">` | User toggles state | `{element, oldValue, newValue}` |
 | `dismiss` | `<trap>` | User dismisses a trap via accept/reject | `{element, action, accepted}` |
 
-### 8.3 Default Actions
+### 11.3 Default Actions
 
 Some events have default actions that execute after dispatch unless canceled:
 
@@ -458,7 +743,7 @@ Some events have default actions that execute after dispatch unless canceled:
 Canceling a default action prevents the SOM tree mutation but does NOT prevent
 the event from continuing to bubble. This mirrors DOM behavior.
 
-### 8.4 Navigation Events (recap)
+### 11.4 Navigation Events (recap)
 
 Cursor movement events (defined in §3.3) also participate in the event model:
 
@@ -473,7 +758,7 @@ Cursor movement events (defined in §3.3) also participate in the event model:
 Canceling a navigation event's default action prevents the cursor from moving.
 The cue does not play. The cursor stays where it is.
 
-### 8.5 Event Listeners
+### 11.5 Event Listeners
 
 Listeners are registered on SOM nodes using the DOM-compatible interface:
 
@@ -493,9 +778,9 @@ Event objects carry:
 | `phase` | string | `"capture"`, `"target"`, or `"bubble"` |
 | `cancelable` | boolean | Whether `preventDefault()` is available |
 | `defaultPrevented` | boolean | Whether default action was canceled |
-| `detail` | object | Event-specific payload (see §8.2) |
+| `detail` | object | Event-specific payload (see §11.2) |
 
-### 8.6 Event Propagation Path
+### 11.6 Event Propagation Path
 
 Events bubble through **scope ancestry**, not raw DOM ancestry. This means
 events propagate through the navigable structure the user perceives:
@@ -515,7 +800,7 @@ events propagate through the navigable structure the user perceives:
 Structural elements (`<gap>`, `<announce>`, `<lane>`, `<frag>`, `<slot>`) are
 transparent to event propagation — events skip over them.
 
-### 8.7 Value Collection
+### 11.7 Value Collection
 
 Applications frequently need to gather all input values from a scope — the 1D
 equivalent of reading form data. The SOM provides a query API:
@@ -537,12 +822,12 @@ container. The `<act verb="save">` at the end of a settings panel can listen
 for `activate`, call `scope.collectValues()` on its containing scope, and
 submit the result.
 
-### 8.8 Confirmation Flow
+### 11.8 Confirmation Flow
 
 When `<act confirm="true">` is activated:
 
 1. `activate` event fires on the `<act>`. Default action: generate confirmation.
-2. If not canceled, the inceptor generates a `<trap>` with accept/reject
+2. If not canceled, the runtime generates a `<trap>` with accept/reject
    children and pushes it onto the focus stack.
 3. User navigates within the trap and activates accept or reject.
 4. `dismiss` event fires on the `<trap>` with `{accepted: true/false}`.
@@ -555,11 +840,11 @@ custom confirmation flows.
 
 ---
 
-## 9 Mutation Interface
+## 12 Mutation Interface
 
 The SOM's mutation interface mirrors DOM's, with added cue-aware semantics.
 
-### 8.1 Standard DOM Mutations
+### 12.1 Standard DOM Mutations
 
 These work identically to DOM:
 
@@ -572,7 +857,7 @@ These work identically to DOM:
 | `parent.removeChild(child)` | Remove a child |
 | `parent.replaceChild(newChild, oldChild)` | Replace a child |
 
-### 8.2 Mutation Side Effects
+### 12.2 Mutation Side Effects
 
 Every mutation triggers SOM-specific processing:
 
@@ -589,8 +874,10 @@ Every mutation triggers SOM-specific processing:
    `<announce change="...">`, the change announcement fires.
 5. **Lane check** — if the mutated node is in a lane, lane routing is
    updated.
+6. **Channel notification** — all active channel engines are notified of the
+   mutation so they can update their output.
 
-### 8.3 Mutation Observer
+### 12.3 Mutation Observer
 
 The SOM supports `MutationObserver` (DOM-compatible) with an extended
 record type:
@@ -604,9 +891,9 @@ record type:
 
 ---
 
-## 10 Query Interface
+## 13 Query Interface
 
-### 9.1 DOM-Compatible Queries
+### 13.1 DOM-Compatible Queries
 
 Standard DOM query methods work on the SOM tree:
 
@@ -617,7 +904,7 @@ document.querySelectorAll("item:not([disabled])")
 element.closest("trap")
 ```
 
-### 9.2 SOM-Specific Queries
+### 13.2 SOM-Specific Queries
 
 | Method | Description |
 |--------|-------------|
@@ -630,7 +917,7 @@ element.closest("trap")
 
 ---
 
-## 11 Serialization
+## 14 Serialization
 
 The SOM can be serialized back to SML markup. This is the inverse of parsing.
 
@@ -645,9 +932,9 @@ may differ).
 
 ---
 
-## 12 Conformance
+## 15 Conformance
 
-### 12.1 Requirements
+### 15.1 Requirements
 
 A conforming SOM implementation MUST:
 
@@ -657,16 +944,21 @@ A conforming SOM implementation MUST:
 4. Implement the FocusStack with push/pop/resume semantics.
 5. Implement the InputContext state machine with all six states.
 6. Compute and maintain the CueMap from CSL stylesheets.
-7. Support DOM-compatible mutation methods.
-8. Relocate the cursor when mutations remove or move the current element.
-9. Fire cursor, scope, context, and mutation events.
-10. Implement the Input Event Model with three-phase dispatch.
-11. Fire interaction events (`activate`, `value-commit`, `selection-commit`,
+7. Organize ResolvedCue properties by I/O channel (§6.1).
+8. Define the three I/O channels and support the ChannelSet (§7).
+9. Implement the LaneTable with cross-channel lane behavior (§8).
+10. Implement the shared Input Router with channel adapters (§9).
+11. Implement the Processing Model navigation loop (§10).
+12. Support DOM-compatible mutation methods.
+13. Relocate the cursor when mutations remove or move the current element.
+14. Fire cursor, scope, context, and mutation events.
+15. Implement the Event Model with three-phase dispatch (§11).
+16. Fire interaction events (`activate`, `value-commit`, `selection-commit`,
     `toggle`, `dismiss`) with correct default actions.
-12. Support `addEventListener` / `removeEventListener` on SOM nodes.
-13. Support `collectValues()` on scope elements.
+17. Support `addEventListener` / `removeEventListener` on SOM nodes.
+18. Support `collectValues()` on scope elements.
 
-### 12.2 Optional Extensions
+### 15.2 Optional Extensions
 
 A conforming implementation MAY:
 
@@ -675,7 +967,7 @@ A conforming implementation MAY:
 3. Implement lazy cue invalidation (computed on access rather than eagerly).
 4. Extend the LaneTable with custom lane names beyond the standard three.
 
-### 12.3 Relationship to DOM Conformance
+### 15.3 Relationship to DOM Conformance
 
 If the implementation uses a DOM substrate, it MUST conform to the DOM
 Living Standard for all DOM-compatible operations. SOM extensions MUST NOT

@@ -88,12 +88,12 @@ A position is where the cursor can land. Every position has:
 The cue is the primary feedback signal in a 1D interface. It is to 1D what
 visual appearance is to 2D: the fundamental way the user perceives an element.
 
-A cue is a bundle of:
-- **Tone** — audio frequency, duration, waveform
-- **Haptic** — vibration pattern, intensity
-- **Motif** — named earcon (short audio pattern)
-- **Speech hint** — whether speech is available
-- **Text** — cell content for braille or other textual displays
+A cue delivers feedback across whichever I/O channels are active
+(see [03-sequential-object-model](03-sequential-object-model.md) §7):
+- **Audio channel** — tone parameters (frequency, waveform, envelope), named
+  earcon (motif), speech hint (linguistic content through audio hardware)
+- **Haptic motor channel** — vibration pattern, intensity
+- **Tactile-text channel** — cell content, braille grade, formatting
 
 SML declares cues two ways:
 1. **Structural** — `cue` attribute on elements, `<cue-def>` in head

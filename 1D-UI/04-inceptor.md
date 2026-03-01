@@ -6,136 +6,122 @@
 
 ## 1 Purpose
 
-An **Inceptor** is the 1D equivalent of a web browser. It is the runtime
-that parses SML, applies CSL, manages navigation, resolves cues, handles input,
-and dispatches output. Every SML document — whether hand-authored or projected
-from UIDL — is consumed by an inceptor.
+The **Inceptor** is the temporal channel engine for 1D interfaces. It reads
+resolved cues from the SOM's CueMap and produces time-domain output for the
+**audio** and **haptic motor** I/O channels
+(see [03-sequential-object-model](03-sequential-object-model.md) §7).
 
-There is no "standalone mode" vs "integrated mode." There is just an inceptor.
-The question is only where the SML tree comes from:
+Audio and haptic motor share a temporal output model: signals are synthesized,
+mixed on a timeline, faded, ducked, and sequenced. The Inceptor manages this
+timeline. It does not own the SOM tree, the cursor, the CSL cascade, or the
+navigation loop — those are shared concerns defined by the SOM (see
+[03-sequential-object-model](03-sequential-object-model.md) §§3–10). The
+Inceptor is an output consumer, not the runtime itself.
 
-| Source | Analogy | Description |
-|--------|---------|-------------|
-| Static SML file | Local .html file | Hand-authored SML parsed directly |
-| LIRAQ projection | Server-rendered HTML | UIDL projected through auditory surface bridge |
-| Dynamic mutation | JavaScript DOM manipulation | External code mutates the SOM tree |
+The Inscriptor (see [05-inscriptor](05-inscriptor.md)) is the peer channel
+engine for the tactile-text channel. Both engines attach to the same SOM tree
+and CueMap; they differ in output model (temporal vs. spatial).
 
-The inceptor treats all sources identically. Once parsed into a SOM tree
-(see [03-sequential-object-model](03-sequential-object-model.md)), the inceptor operates
-on the same object model regardless of origin.
+### 1.1 What the Inceptor Owns
+
+| Responsibility | Description |
+|---------------|-------------|
+| Audio encoding | Convert tone/motif/speech cue properties into PCM audio, earcon playback, and TTS output |
+| Haptic motor encoding | Convert haptic cue properties into motor activation patterns |
+| Lane mixing (temporal) | Prioritize and interleave foreground, background, and interrupt content on a timeline |
+| Speech synthesis | Produce linguistic audio from speech templates (speech is audio-channel content) |
+| Temporal interrupt handling | Fade, snapshot, and restore audio/haptic state during interrupts |
+| Accommodation application | Apply user preference overrides to audio and haptic output |
+
+### 1.2 What the Inceptor Does Not Own
+
+| Concern | Owner |
+|---------|-------|
+| SML parsing | SOM runtime (§10.1 of SOM) |
+| CSL parsing / cue resolution | SOM runtime (§6 of SOM) |
+| Navigation (cursor, focus stack) | SOM (§§3–4) |
+| Input routing / channel adapters | SOM (§9) |
+| Input context state machine | SOM (§5) |
+| Lane routing (cross-channel) | SOM (§8) |
+| Tactile-text output | Inscriptor |
 
 ---
 
 ## 2 Architecture
 
 ```
+                    Resolved Cue (from SOM CueMap)
+                              │
+                              ▼
 ┌───────────────────────────────────────────────────────────┐
-│                     Inceptor                        │
+│                        Inceptor                           │
 │                                                           │
-│  ┌────────────┐  ┌────────────┐  ┌─────────────────┐     │
-│  │ SML Parser │  │ CSL Parser │  │ Cue Resolver     │     │
-│  │            │  │            │  │ (cascade engine)  │     │
-│  └─────┬──────┘  └─────┬──────┘  └────────┬────────┘     │
-│        │               │                   │              │
-│        ▼               ▼                   ▼              │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │                  SOM Tree                         │     │
-│  │  (document + cursor + focus stack + input context │     │
-│  │   + cue map + lane table)                         │     │
-│  └───────────────────────┬──────────────────────────┘     │
-│                          │                                │
-│        ┌─────────────────┼─────────────────┐              │
-│        ▼                 ▼                 ▼              │
-│  ┌───────────┐    ┌────────────┐    ┌───────────┐        │
-│  │ Navigator │    │   Lane     │    │  Input    │        │
-│  │           │    │   Mixer    │    │  Router   │        │
-│  └─────┬─────┘    └─────┬──────┘    └─────┬─────┘        │
-│        │                │                  │              │
-│        └────────┬───────┘                  │              │
-│                 ▼                          │              │
-│        ┌──────────────┐                   │              │
-│        │ Output       │◄──────────────────┘              │
-│        │ Encoders     │                                  │
-│        └──────┬───────┘                                  │
-└───────────────┼──────────────────────────────────────────┘
-                │
-    ┌───────────┼───────────┐
-    ▼           ▼           ▼
-┌────────┐ ┌────────┐ ┌────────┐
-│ Audio  │ │ Haptic │ │ Speech │
-│ Device │ │ Device │ │ Engine │
-└────────┘ └────────┘ └────────┘
-
-(Braille output is handled by the Braille Renderer — see
-[05-braille-renderer](05-braille-renderer.md) — a peer engine that
-shares the SOM tree but renders to a spatial cell array.)
+│   ┌─────────────────────────────────────────────────┐     │
+│   │              Lane Mixer (temporal)               │     │
+│   │  foreground ──┬── background ──┬── interrupt     │     │
+│   └──────────────┬┘               │                  │     │
+│                  │                │                   │     │
+│        ┌─────────┴─────────┐     │                   │     │
+│        ▼                   ▼     ▼                   │     │
+│  ┌───────────┐      ┌───────────────┐               │     │
+│  │  Audio    │      │  Haptic Motor │               │     │
+│  │  Encoder  │      │  Encoder      │               │     │
+│  │           │      │               │               │     │
+│  │ ┌───────┐ │      └───────┬───────┘               │     │
+│  │ │ Tone  │ │              │                        │     │
+│  │ │ synth │ │              │                        │     │
+│  │ ├───────┤ │              │                        │     │
+│  │ │ Motif │ │              │                        │     │
+│  │ │ player│ │              │                        │     │
+│  │ ├───────┤ │              │                        │     │
+│  │ │Speech │ │              │                        │     │
+│  │ │ TTS   │ │              │                        │     │
+│  │ └───────┘ │              │                        │     │
+│  └─────┬─────┘              │                        │     │
+└────────┼────────────────────┼────────────────────────┘     │
+         │                    │                              │
+         ▼                    ▼                              │
+   ┌──────────┐        ┌──────────────┐                     │
+   │  Audio   │        │  Haptic      │                     │
+   │  Device  │        │  Motor       │                     │
+   │ (speaker/│        │  (vibration  │                     │
+   │  headph) │        │   motor)     │                     │
+   └──────────┘        └──────────────┘
 ```
 
 ### 2.1 Component Summary
 
-| Component | Role | Analogy |
-|-----------|------|---------|
-| SML Parser | Parse SML markup → SOM tree | HTML Parser |
-| CSL Parser | Parse CSL text → stylesheet rules | CSS Parser |
-| Cue Resolver | Match selectors, cascade, compute cue per node | Style resolver (computed styles) |
-| SOM Tree | In-memory document with 1D extensions | DOM + resolved style map |
-| Navigator | Process cursor operations, manage focus stack | Traversal engine (determines sequence order) |
-| Lane Mixer | Route and prioritize output channels | Priority mixer (determines what reaches the user) |
-| Input Router | Receive input events, translate to context-aware actions | Event dispatch loop |
-| Output Encoders | Convert resolved cues to device signals | Output producer (generates perceivable signals) |
+| Component | Role |
+|-----------|------|
+| Lane Mixer | Prioritize and interleave temporal content across foreground, background, and interrupt lanes |
+| Audio Encoder | Produce audio output: tone synthesis, earcon playback, and speech (TTS) — all mixed into a single audio stream |
+| Haptic Motor Encoder | Produce vibration motor output: pattern activation, intensity, duration |
+
+Note: Speech synthesis is a sub-pipeline of the audio encoder, not a separate
+encoder. Speech is linguistic content delivered through audio hardware, just as
+tones and earcons are nonverbal content delivered through the same hardware.
 
 ---
 
-## 3 Processing Model
+## 3 Output Processing
 
-### 3.1 Document Loading
+### 3.1 Cue Reception
 
-When the inceptor loads an SML document:
+When the SOM dispatches a resolved cue to the Inceptor (see SOM §10.3), the
+Inceptor extracts the audio-channel and haptic-motor-channel properties:
 
-```
-1. Parse SML text → SOM tree
-2. Parse all <link rel="stylesheet"> and <style> → CSL stylesheets
-3. Resolve <cue-def> elements → named cue definitions
-4. Compute initial CueMap (cascade all CSL against full tree)
-5. Initialize Cursor at document.body (root <seq>) first navigable child
-6. Push root scope onto FocusStack
-7. Set InputContext to "navigation"
-8. Fire scope-enter announcement for root scope
-9. Fire initial cue for cursor's first position
-10. Begin input processing loop
-```
+| Channel | Properties consumed |
+|---------|-------------------|
+| Audio | `tone`, `duration`, `waveform`, `envelope`, `volume`, `pan`, `motif`, `motifVariant`, `speechTemplate`, `speechRole`, `speechRate`, `speechPitch`, `speechVolume` |
+| Haptic motor | `hapticType`, `hapticIntensity`, `hapticDuration`, `hapticPattern` |
+| Cross-channel | `boundaryCue`, `boundaryMotif`, `urgency`, `interruptBehavior`, `cueDelay`, `cueFadeIn`, `cueFadeOut` |
 
-### 3.2 Navigation Loop
+Tactile-text properties (`braille*`) are ignored — those are consumed by the
+Inscriptor.
 
-The core loop of the inceptor:
+### 3.2 Cue Sequence
 
-```
-LOOP:
-  1. Wait for input event from Input Router
-  2. Translate input event to navigation action via InputContext
-  3. Execute action on Cursor (next, prev, enter, back, jumpTo, activate)
-  4. If cursor moved:
-     a. Fire navigation event (three-phase dispatch per SOM §8)
-     b. If not canceled: compute cue for new position from CueMap
-     c. Compute any boundary/scope-transition cues
-     d. Dispatch cues to Lane Mixer
-     e. Lane Mixer routes to Output Encoders
-     f. Output Encoders produce device signals
-  5. If activation occurred:
-     a. Fire interaction event (activate, value-commit, toggle, etc.)
-     b. If not canceled: execute default action (update SOM attribute)
-     c. Fire context-enter event if input context changes
-  6. If mutation occurred (default action, external patch):
-     a. Update SOM tree
-     b. Invalidate CueMap entries
-     c. Check cursor validity
-     d. Fire change announcements if applicable
-  7. GOTO LOOP
-```
-
-### 3.3 Cue Dispatch Sequence
-
-When the cursor moves to a new position, the inceptor produces cues in this
+When the cursor moves to a new position, the Inceptor produces output in this
 order:
 
 1. **Movement cue** — the earcon for the navigation action itself (step, wrap,
@@ -144,11 +130,12 @@ order:
    Played immediately after movement cue (or simultaneously, implementation
    choice).
 3. **State modifiers** — if the element has state flags (disabled, unread,
-   urgent), the identity cue is modified (pitch shift, motif overlay, etc.)
-   according to CSL state override rules.
+   urgent), the identity cue is modified (pitch shift, motif overlay, haptic
+   intensity change) according to CSL state override rules.
 4. **Scope announcement** — if a scope boundary was crossed, the announcement
-   template plays (speech). Played after identity cue.
-5. **Speech** — only if explicitly requested by user. Not automatic.
+   template plays (speech, through the audio encoder). Played after identity cue.
+5. **Speech** — only if the user explicitly requests it via a `speak-*` action.
+   Not automatic.
 
 The entire sequence for a single navigation step completes within the
 `cue-duration` window (typically 20–80ms for nonverbal cues, plus speech if
@@ -156,173 +143,89 @@ requested).
 
 ---
 
-## 4 Input Processing
+## 4 Lane Mixer (Temporal)
 
-### 4.1 Input Router
-
-The Input Router receives raw events from input channels and translates them
-to semantic actions based on the current InputContext:
-
-```
-Raw Input Event
-      │
-      ▼
-┌──────────────────┐
-│ Channel adapter   │  ← keyboard, switch, voice, braille, touch
-│ (raw → semantic)  │
-└────────┬─────────┘
-         │ semantic event
-         ▼
-┌──────────────────┐
-│  InputContext     │  ← determines meaning based on current state
-│  interpreter     │
-└────────┬─────────┘
-         │ navigation action
-         ▼
-┌──────────────────┐
-│  Cursor /        │
-│  Context engine  │
-└──────────────────┘
-```
-
-### 4.2 Channel Adapters
-
-Each input channel type has an adapter that maps device-specific events to
-semantic actions:
-
-| Channel | Raw event | Semantic action |
-|---------|----------|----------------|
-| Keyboard | Arrow Right / Arrow Down | `next` |
-| Keyboard | Arrow Left / Arrow Up | `prev` |
-| Keyboard | Enter | `activate` |
-| Keyboard | Escape | `back` |
-| Keyboard | Tab | `next` (alternate) |
-| Switch (1-switch) | Press | `activate` (during auto-scan) |
-| Switch (2-switch) | Switch 1 | `next`, Switch 2 = `activate` |
-| Voice | "Next" | `next` |
-| Voice | "Back" | `back` |
-| Voice | "Select" / "Activate" | `activate` |
-| Voice | "Go to {label}" | `jumpTo(id)` — voice-driven jump |
-| Braille | Space+Dot-4 | `next` |
-| Braille | Space+Dot-1 | `prev` |
-| Braille | Space+Dot-3+6 | `activate` |
-| Braille | Space+Dot-1+2+5+6 | `back` |
-| Touch | Swipe right | `next` |
-
-Braille displays also generate renderer-specific actions (panning, routing
-keys, dot entry) — see [05-braille-renderer](05-braille-renderer.md) §8.
-| Touch | Swipe left | `prev` |
-| Touch | Double-tap | `activate` |
-
-### 4.3 Auto-Scan Mode
-
-When accommodation preferences enable switch scanning (see
-[01-sml](01-sml.md)), the inceptor runs an auto-scan timer:
-
-1. Advance cursor to next position at `switch-scan-interval`.
-2. Play identity cue for each position.
-3. When the user presses the switch, activate the current position.
-4. Scanning mode (`linear`, `group`, `row-column`) determines scope traversal
-   strategy during auto-advance.
-
-### 4.4 Speech Requests
-
-Verbal information is pull-based. The user explicitly requests speech through
-dedicated input actions:
-
-| Action | Response |
-|--------|----------|
-| `speak-current` | Speak the current element's label |
-| `speak-detail` | Speak label + detail + state description |
-| `speak-where` | Speak scope path: "Inbox > Message 3 of 12" |
-| `speak-what-changed` | Speak description of last mutation |
-
-These are additional semantic actions beyond the five navigation primitives.
-Channel adapters map device-specific gestures to them (e.g., long-press on
-switch, "What is this?" voice command, specific braille chord).
-
----
-
-## 5 Lane Mixer
-
-The Lane Mixer manages the single-timeline output problem: a 1D interface
-presents content sequentially, so concurrent demands must be prioritized,
+The Lane Mixer manages the single-timeline output problem: temporal channels
+present content sequentially, so concurrent demands must be prioritized,
 interleaved, or deferred.
 
-### 5.1 Mixing Strategy
+Lane assignments are determined by the SOM's LaneTable (see SOM §8). The
+Inceptor's Lane Mixer interprets those assignments through the temporal model.
 
-The mixer operates a priority queue across the three standard lanes:
+### 4.1 Mixing Strategy
 
 | Priority | Lane | Behavior |
 |----------|------|----------|
-| 1 (highest) | `interrupt` | Preempts all other output. Currently playing audio fades out, interrupt plays, then previous output resumes or is discarded. |
+| 1 (highest) | `interrupt` | Preempts all other output. Currently playing audio fades out, haptic patterns suspend, interrupt plays, then previous output resumes or is discarded. |
 | 2 | `foreground` | Normal navigation cues and active interaction feedback. If interrupted, pauses and resumes after interrupt. |
 | 3 (lowest) | `background` | Ambient and periodic content. Ducks (volume reduction) when foreground is active. Pauses during interrupt. |
 
-### 5.2 Interrupt Handling
+### 4.2 Interrupt Handling
 
 When an interrupt arrives:
 
 1. **Snapshot** foreground and background state (what was playing, cursor
-   position, volumes).
-2. **Fade out** foreground (fast, ~50ms).
-3. **Play** interrupt content.
+   position, volumes, active haptic patterns).
+2. **Fade out** foreground audio (fast, ~50ms). Suspend haptic patterns.
+3. **Play** interrupt content through both audio and haptic motor encoders.
 4. If interrupt is a `<trap>` (confirmation dialog):
-   a. Push trap onto focus stack.
-   b. Switch input context to `trapped`.
+   a. Push trap onto focus stack (SOM handles this).
+   b. Input context switches to `trapped`.
    c. Navigate within trap children.
    d. On dismiss: pop focus stack, restore input context, restore snapshot.
 5. If interrupt is a one-shot `<alert>`:
-   a. Play alert cue + speech.
-   b. Restore snapshot immediately after playback.
+   a. Play alert cue (audio) + alert haptic.
+   b. Speak alert content if `cue-speech` is `auto` or requested.
+   c. Restore snapshot immediately after playback.
 
-### 5.3 Background Scheduling
+### 4.3 Background Scheduling
 
 Background lane content (`<tick>` periodic updates, ambient status) is
 scheduled during navigation silences — the gaps between user actions:
 
 | Condition | Background behavior |
 |-----------|-------------------|
-| User idle > threshold | Background plays at normal volume |
-| User navigating | Background muted or ducked |
-| Interrupt active | Background paused |
+| User idle > threshold | Background plays at normal volume, ambient haptic patterns active |
+| User navigating | Background audio muted or ducked, haptic patterns suppressed |
+| Interrupt active | Background paused entirely |
 | Background queue empty | Nothing plays |
 
 ---
 
-## 6 Output Encoders
+## 5 Audio Encoder
 
-Output encoders convert resolved cues into device-specific signals. They are
-the final production stage of the inceptor pipeline.
+The audio encoder is the audio channel's output producer. It converts resolved
+cue properties into audible signals through three sub-pipelines.
 
-### 6.1 Audio Encoder
+### 5.1 Tone Synthesis
 
 | Input | Output |
 |-------|--------|
 | `tone` (frequency) + `duration` + `waveform` + `envelope` | PCM audio samples |
-| `motif` (named earcon) | Pre-rendered or synthesized audio pattern |
 | `volume`, `pan` | Amplitude and stereo position |
 
-The audio encoder is responsible for:
-- Synthesizing tones from frequency/waveform/envelope parameters.
-- Looking up named motifs in the earcon registry and producing audio.
-- Mixing multiple simultaneous cue components (tone + motif overlay).
-- Applying volume/pan.
+The tone synthesizer:
+- Generates waveforms from frequency/waveform/envelope parameters.
+- Applies ADSR envelope (attack, decay, sustain, release).
+- Supports frequency sweeps (`tone` → `toneEnd`).
+- Applies volume and stereo panning.
 
 Implementation of synthesis (wavetable, FM, additive, sample playback) is not
 specified. The encoder MUST produce audio that conforms to the resolved cue
 properties.
 
-### 6.2 Haptic Encoder
+### 5.2 Motif Playback
 
 | Input | Output |
 |-------|--------|
-| `hapticType` (tick, pulse, buzz, etc.) | Motor activation pattern |
-| `hapticIntensity` | Amplitude |
-| `hapticDuration` | Pattern length |
-| `hapticPattern` | Custom pattern descriptor |
+| `motif` (named earcon) | Pre-rendered or synthesized audio pattern |
+| `motifVariant` | Variation of the named earcon |
 
-### 6.3 Speech Encoder
+Named motifs are looked up in the earcon registry (see [02-csl](02-csl.md) §5).
+The encoder produces the corresponding audio pattern. Multiple simultaneous
+cue components (tone + motif overlay) are mixed.
+
+### 5.3 Speech Synthesis
 
 | Input | Output |
 |-------|--------|
@@ -330,27 +233,60 @@ properties.
 | `speechRate`, `speechPitch`, `speechVolume` | TTS parameters |
 | `speechRole` (voice identifier) | Voice selection |
 
-The speech encoder:
+The speech sub-pipeline:
 1. Interpolates the speech template with element data.
 2. Passes the resulting text to the TTS engine with voice parameters.
-3. Returns audio stream for mixing into the lane.
+3. Returns an audio stream for mixing into the lane's audio output.
 
-### 6.4 Quiet Encoder
+Speech is delivered through the same audio hardware as tones and earcons. It is
+linguistic content on the audio channel, not a separate output path.
+
+### 5.4 Speech Requests
+
+Speech is pull-based. The user explicitly requests speech through dedicated
+semantic actions (see SOM §9.3):
+
+| Action | Audio encoder response |
+|--------|----------------------|
+| `speak-current` | Speak the current element's label |
+| `speak-detail` | Speak label + detail + state description |
+| `speak-where` | Speak scope path: "Inbox > Message 3 of 12" |
+| `speak-what-changed` | Speak description of last mutation |
+
+The Inceptor handles these actions by invoking the speech sub-pipeline within
+the audio encoder.
+
+### 5.5 Quiet Encoder
 
 When the surface's `output-mode` is `quiet`, the quiet encoder logs cue events
 without producing output. Useful for testing, debugging, and headless operation.
+Both audio and haptic motor encoders are replaced by the quiet encoder.
 
-> **Note:** Braille output is handled by the **Braille Renderer**
-> (see [05-braille-renderer](05-braille-renderer.md)), a peer engine that
-> consumes the same SOM tree and CueMap but renders to a spatial cell array
-> rather than a temporal signal stream.
+---
+
+## 6 Haptic Motor Encoder
+
+The haptic motor encoder converts resolved haptic cue properties into motor
+activation patterns.
+
+| Input | Output |
+|-------|--------|
+| `hapticType` (tick, pulse, buzz, rumble, etc.) | Motor activation pattern |
+| `hapticIntensity` | Amplitude (0–255) |
+| `hapticDuration` | Pattern length in ms |
+| `hapticPattern` | Custom pattern descriptor |
+
+The encoder translates named haptic types to device-specific motor commands.
+The mapping from `hapticType` names to physical activation patterns is
+implementation-defined, but MUST convey the semantic distinction between types
+(e.g., `tick` is brief and sharp, `rumble` is sustained and diffuse).
 
 ---
 
 ## 7 Accommodation Application
 
-The inceptor applies accommodation preferences (from the environment, stored
-profile, or LIRAQ `_user.accommodations`) at two points:
+The Inceptor applies accommodation preferences (from the environment, stored
+profile, or LIRAQ `_user.accommodations`) to the temporal channels.
 
 ### 7.1 During Cue Resolution (Cascade Override)
 
@@ -361,14 +297,14 @@ Accommodations override specific resolved cue properties after the CSL cascade:
 | `preferred-rate` | `speechRate` |
 | `preferred-voice` | `speechRole` |
 | `preferred-pitch` | `speechPitch` |
-| `earcon-volume` | `volume` for non-speech cues |
+| `earcon-volume` | `volume` for non-speech audio cues |
 | `haptic-intensity` | `hapticIntensity` multiplier |
 
 ### 7.2 During Input Processing (Behavior Override)
 
 | Accommodation | Modifies |
 |--------------|----------|
-| `switch-scanning` | Enables auto-scan timer |
+| `switch-scanning` | Enables auto-scan timer (SOM §9.4) |
 | `switch-scan-interval` | Auto-scan period |
 | `switch-scan-mode` | Scan traversal strategy |
 | `dwell-activation` | Enables dwell timer on sustained indication |
@@ -381,154 +317,154 @@ Accommodations override specific resolved cue properties after the CSL cascade:
 
 ### 8.1 Events
 
-| Event | When | Scope |
-|-------|------|-------|
-| `document-open` | Document parsed and initial cue played | Document |
-| `document-close` | Document being unloaded | Document |
-| `document-mutated` | SOM tree changed (any mutation) | Document |
-| `cursor-move` | Cursor position changed | Cursor |
-| `scope-enter` | New scope pushed to focus stack | FocusStack |
-| `scope-exit` | Scope popped from focus stack | FocusStack |
-| `context-enter` | Input context state changed | InputContext |
-| `context-exit` | Input context returned to navigation | InputContext |
-| `cue-play` | Cue dispatched to output encoder | Lane Mixer |
-| `interrupt-start` | Interrupt content began playback | Lane Mixer |
-| `interrupt-end` | Interrupt content finished, state restored | Lane Mixer |
+The Inceptor listens for SOM events and produces temporal output:
+
+| SOM Event | Inceptor response |
+|-----------|-------------------|
+| `document-open` | Play root scope announcement, initial position cue |
+| `cursor-move` | Play movement + identity cue sequence (§3.2) |
+| `scope-enter` | Play scope announcement (speech), boundary cue |
+| `scope-exit` | Play exit motif, boundary cue |
+| `context-enter` | Play context-transition earcon |
+| `context-exit` | Play context-exit earcon |
+| `interrupt-start` | Snapshot, fade, play interrupt (§4.2) |
+| `interrupt-end` | Restore snapshot |
+| `document-mutated` | Recompute and replay cue if cursor is on mutated node |
 
 ### 8.2 External Mutation
 
-When an external source (LIRAQ projection bridge, application script, DCS)
-mutates the SOM tree, the inceptor:
+When an external source (LIRAQ projection bridge, application script) mutates
+the SOM tree, the SOM runtime handles tree mutation, cue invalidation, and
+cursor validity (see SOM §12.2). The Inceptor responds to the resulting events:
 
-1. Applies the mutation to the SOM (standard DOM mutation interface).
-2. Processes mutation side effects (SOM §8.2).
-3. Recomputes affected CueMap entries.
-4. If the cursor is on a mutated node, replays its cue with updated properties.
-5. If the mutation triggers a change announcement, routes it to the appropriate
-   lane.
-6. If the mutation adds an `<alert>`, routes to interrupt lane.
-
-The inceptor MUST NOT require the external mutator to manage cue resolution,
-cursor validity, or lane routing. Mutation is fire-and-forget from the
-mutator's perspective — the inceptor handles all downstream effects.
+- If the cursor is on a mutated node, the Inceptor replays the cue with
+  updated properties.
+- If the mutation triggers a change announcement, the Inceptor routes the
+  announcement to the appropriate lane.
+- If the mutation adds an `<alert>`, the Inceptor routes to the interrupt lane.
 
 ---
 
 ## 9 Multi-Document
 
-An inceptor MAY support multiple simultaneous SOM trees (analogous to browser
-tabs). Each document has independent:
+An implementation MAY support multiple simultaneous SOM trees (analogous to
+browser tabs). Each document has independent SOM state. The Inceptor attaches
+to the active document's SOM. Switching documents causes the Inceptor to
+detach from the previous SOM and attach to the new one.
 
-- SOM tree
-- Cursor
-- FocusStack
-- InputContext
-- CueMap
-- LaneTable
-
-Switching between documents is an inceptor-level action. The active document
-receives input events. Inactive documents may continue background lane playback
-at the inceptor's discretion.
+Inactive documents may continue background lane playback at the
+implementation's discretion.
 
 ---
 
 ## 10 LIRAQ Integration
 
-When running as the auditory surface's backend within a LIRAQ runtime:
+When running as part of the auditory surface within a LIRAQ runtime:
 
 ### 10.1 Bridge as Document Source
 
 The LIRAQ auditory surface bridge (see
-[14-auditory-surface](../spec_v1/14-auditory-surface.md)) acts as the document
-source. It produces a complete SOM tree from the UIDL projection pipeline and
-hands it to the inceptor. Subsequent UIDL state changes arrive as SOM
-mutations through the standard mutation interface.
+[14-auditory-surface](../spec_v1/14-auditory-surface.md)) produces a SOM tree
+from the UIDL projection pipeline. The SOM runtime manages this tree.
+Subsequent UIDL state changes arrive as SOM mutations.
+
+The Inceptor attaches to the SOM tree and produces temporal output. It does
+not interact with the LIRAQ bridge directly — it observes SOM events.
 
 ### 10.2 Event Forwarding
 
-The LIRAQ bridge registers SOM event listeners (see
-[03-sequential-object-model](03-sequential-object-model.md) §8) on the SOM
-tree to forward interaction events to the LIRAQ runtime:
+The LIRAQ bridge registers SOM event listeners (see SOM §11) on the SOM tree
+to forward interaction events to the LIRAQ runtime:
 
 | SOM Event | LIRAQ Effect |
 |-----------|-------------|
 | `activate` on `<act>` | Dispatches the action's `verb` to the behavior engine |
 | `value-commit` on `<val>` | Updates bound state tree path with new value |
 | `selection-commit` on `<pick>` | Updates bound state tree path with selection |
-| `toggle` on `<val kind=\"toggle\">` | Flips bound state tree boolean |
+| `toggle` on `<val kind="toggle">` | Flips bound state tree boolean |
 | `cursor-move` | Updates `_surfaces.<id>.attention` in state tree |
 | `dismiss` on `<trap>` | Notifies behavior engine of dialog resolution |
 
 The bridge attaches these listeners at the document root (capture phase). This
 is identical to how a web framework listens on `document` for DOM events —
-the inceptor itself doesn't know or care about LIRAQ. It just fires SOM events.
-The bridge is an event listener like any other.
+the Inceptor doesn't know or care about LIRAQ. It just produces temporal
+output for whatever SOM events occur.
 
 ### 10.3 Attention Synchronization
 
 When the LIRAQ runtime issues `set-attention` for the auditory surface, the
-inceptor translates it to `cursor.jumpTo(id)`, triggering the standard
-navigation sequence (scope transitions, cue playback, announcements).
+SOM runtime translates it to `cursor.jumpTo(id)`, triggering the standard
+navigation sequence. The Inceptor responds with temporal output for the
+resulting cursor events.
 
 ### 10.4 Independence
 
-Even within LIRAQ, the inceptor is a self-contained component. It can be
-replaced, upgraded, or run in a separate process. The interface between the
-LIRAQ bridge and the inceptor is the SOM mutation API + event forwarding.
-This is the same boundary as between a web application and a browser.
+The Inceptor is a self-contained channel engine. It can be replaced, upgraded,
+or run in a separate process. The interface between the SOM and the Inceptor
+is: SOM event observation + CueMap property reads. This is the same
+publish-subscribe pattern used by the Inscriptor.
 
 ---
 
-## 11 Conformance
-
-### 11.1 Requirements
-
-A conforming Inceptor MUST:
-
-1. Parse SML documents into SOM trees per [03-sequential-object-model](03-sequential-object-model.md).
-2. Parse CSL stylesheets per [02-csl](02-csl.md).
-3. Compute resolved cues via the CSL cascade for all navigable nodes.
-4. Implement the five cursor operations (next, prev, enter, back, jumpTo).
-5. Implement the focus stack with push/pop/resume semantics.
-6. Implement all six input context states and automatic transitions.
-7. Implement the three standard lanes with priority mixing.
-8. Handle interrupt content with state save/restore.
-9. Apply accommodation overrides during cue resolution and input processing.
-10. Accept SOM mutations from external sources and handle all side effects.
-11. Produce output through at least one encoder (audio, haptic, or speech).
-12. Fire SOM interaction events with three-phase dispatch per [03-sequential-object-model](03-sequential-object-model.md) §8.
-13. Execute default actions for interaction events unless canceled.
-14. Support the confirmation flow for `<act confirm="true">`.
-
-### 11.2 Optional Features
-
-A conforming inceptor MAY:
-
-1. Support multi-document operation.
-2. Implement auto-scan for switch scanning.
-3. Implement dwell activation.
-4. Support custom lanes beyond the three standard lanes.
-5. Support inceptor extensions (plugins, custom encoders).
-6. Run in headless/quiet mode for testing.
-
-### 11.3 Interop: Running Inside a Browser
+## 11 Browser Interop
 
 An Inceptor MAY be implemented as a JavaScript library running inside a
 web browser. In this configuration:
 
 - The SOM tree is backed by the browser's XML DOM.
-- CSL parsing and cue resolution run in JavaScript.
-- Audio output uses Web Audio API.
-- Haptic output uses Vibration API (where available).
-- Speech output uses Web Speech API.
-- Input events come from browser keyboard/pointer/touch events.
+- Audio output uses the Web Audio API.
+- Haptic motor output uses the Vibration API (where available).
+- Speech output uses the Web Speech API.
 
-A browser-hosted Braille Renderer (see
-[05-braille-renderer](05-braille-renderer.md) §13) can run alongside the
-Inceptor, sharing the same SOM tree via the in-memory DOM.
+When browser-hosted, both the Inceptor and the Inscriptor (see
+[05-inscriptor](05-inscriptor.md) §12) can share the same in-memory DOM.
+This enables a LIRAQ runtime to serve all three I/O channels from a single
+browser-hosted deployment.
 
-This is one likely implementation path. The inceptor need not be a separate
-native application — it can be a library that shares a host process with other
-LIRAQ surface implementations. When browser-hosted, this enables a LIRAQ
-runtime to serve multiple surfaces (visual, auditory, tactile) from a single
-deployment.
+---
+
+## 12 Conformance
+
+### 12.1 Requirements
+
+A conforming Inceptor MUST:
+
+1. Attach to a SOM tree and read resolved cues from the CueMap.
+2. Produce audio output through at least one sub-pipeline (tone synthesis,
+   motif playback, or speech).
+3. Produce haptic motor output when haptic properties are present and a haptic
+   device is available.
+4. Implement the temporal Lane Mixer with foreground, background, and interrupt
+   priority (§4).
+5. Handle interrupt content with audio/haptic snapshot, fade, and restore
+   (§4.2).
+6. Implement the cue sequence order (movement → identity → state → boundary →
+   speech) per §3.2.
+7. Support speech requests (`speak-current`, `speak-detail`, `speak-where`,
+   `speak-what-changed`) through the audio encoder's speech sub-pipeline (§5.4).
+8. Apply accommodation overrides during output production (§7).
+9. Respond to SOM events (`cursor-move`, `scope-enter`, `scope-exit`,
+   `context-enter`, `context-exit`, `interrupt-start`, `interrupt-end`) with
+   appropriate temporal output (§8.1).
+10. Respond to SOM tree mutations by replaying cues for affected elements (§8.2).
+11. Accept SOM mutations from external sources and handle downstream temporal
+    effects without requiring the mutator to manage cue production.
+12. Operate independently of the Inscriptor — the Inceptor MUST function
+    correctly with or without a peer tactile-text engine.
+
+### 12.2 Optional Features
+
+A conforming Inceptor MAY:
+
+1. Support multi-document operation.
+2. Implement auto-scan timing for switch scanning accommodation.
+3. Implement dwell activation.
+4. Support custom lanes beyond the three standard lanes.
+5. Support plugin extensions for custom encoders or motif formats.
+6. Run in headless/quiet mode for testing.
+
+### 12.3 Browser Hosting
+
+An Inceptor implemented as a browser-hosted library MUST use standard web APIs
+(Web Audio, Vibration, Web Speech) and MUST NOT require browser extensions or
+native plugins for core functionality.

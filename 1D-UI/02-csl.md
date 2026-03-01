@@ -7,14 +7,15 @@
 ## 1 Purpose
 
 CSL is a styling language for 1D user interfaces. It controls how SML elements
-sound, feel, and speak — auditory cues, haptic feedback, speech parameters,
-urgency levels, and navigation behavior.
+sound, feel, and read — properties for all three I/O channels (audio, haptic
+motor, and tactile-text), urgency levels, and navigation behavior.
 
-CSL is to the auditory surface what CSS is to the visual-browser surface. It
-maps SML elements (see [01-sml](01-sml.md)) to concrete presentation properties
+CSL is to the 1D surface what CSS is to the visual-browser surface. It maps
+SML elements (see [01-sml](01-sml.md)) to concrete presentation properties
 using the same selector syntax, specificity model, and cascade rules as CSS.
-The property vocabulary is entirely its own: temporal, auditory, and tactile
-presentation.
+The property vocabulary is entirely its own: audio, haptic motor, and
+tactile-text presentation. Properties are grouped by the I/O channel they
+address (see [03-sequential-object-model](03-sequential-object-model.md) §7).
 
 ### 1.1 Relationship to Presentation Profiles
 
@@ -106,7 +107,14 @@ CSL supports the full CSS selector syntax.
 | `nav-role` | `<role-name>` | (from element) | Semantic role override |
 | `nav-announce` | `auto` \| `always` \| `never` | `auto` | Whether entering announces the element |
 
-### 3.3 Cue: Tone / Audio
+### 3.3 Audio Channel Properties
+
+All audio channel properties are consumed by the Inceptor's audio encoder
+(see [04-inceptor](04-inceptor.md) §5). Speech properties control linguistic
+content delivered through audio hardware — speech is part of the audio channel,
+not a separate output path.
+
+#### 3.3.1 Tone & Motif
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -127,16 +135,7 @@ CSL supports the full CSS selector syntax.
 | `cue-repeat` | `<count>` \| `infinite` | `1` | Repeat count |
 | `cue-reverb` | `none` \| `small` \| `medium` \| `large` | `none` | Reverb simulation |
 
-### 3.4 Cue: Haptic
-
-| Property | Values | Default | Description |
-|----------|--------|---------|-------------|
-| `cue-haptic` | `tick` \| `bump` \| `buzz` \| `rumble` \| `pulse` \| `none` | `none` | Haptic feedback type |
-| `cue-haptic-intensity` | `0`–`255` | `128` | Haptic intensity |
-| `cue-haptic-duration` | `<ms>` | `50` | Haptic duration |
-| `cue-haptic-pattern` | `<pattern-name>` \| `none` | `none` | Named haptic pattern |
-
-### 3.5 Cue: Speech
+#### 3.3.2 Speech
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -149,22 +148,33 @@ CSL supports the full CSS selector syntax.
 | `cue-speech-pause-before` | `<ms>` | `0` | Pause before speech |
 | `cue-speech-pause-after` | `<ms>` | `0` | Pause after speech |
 
-### 3.6 Cue: Braille
+### 3.4 Haptic Motor Channel Properties
 
-These properties are consumed by the **Braille Renderer**
-(see [05-braille-renderer](05-braille-renderer.md)), not by the Inceptor's
-temporal encoders.
+Consumed by the Inceptor's haptic motor encoder
+(see [04-inceptor](04-inceptor.md) §6).
+
+| Property | Values | Default | Description |
+|----------|--------|---------|-------------|
+| `cue-haptic` | `tick` \| `bump` \| `buzz` \| `rumble` \| `pulse` \| `none` | `none` | Haptic feedback type |
+| `cue-haptic-intensity` | `0`–`255` | `128` | Haptic intensity |
+| `cue-haptic-duration` | `<ms>` | `50` | Haptic duration |
+| `cue-haptic-pattern` | `<pattern-name>` \| `none` | `none` | Named haptic pattern |
+
+### 3.5 Tactile-Text Channel Properties
+
+Consumed by the Inscriptor
+(see [05-inscriptor](05-inscriptor.md)).
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
 | `cue-braille-grade` | `0` \| `1` \| `2` \| `auto` | `auto` | Braille transcription grade (0 = computer, 1 = uncontracted, 2 = contracted, auto = grade 2 for text / grade 0 for values) |
 | `cue-braille-content` | `<template-string>` | `"{label} {value}"` | Template for assembling cell content from element attributes |
-| `cue-braille-cursor` | `dots-7-8` \| `blink` \| `none` | `dots-7-8` | Edit-position indicator style on the braille display |
+| `cue-braille-cursor` | `dots-7-8` \| `blink` \| `none` | `dots-7-8` | Edit-position indicator style on the tactile-text display |
 | `cue-braille-truncation` | `ellipsis` \| `scroll` \| `wrap` | `scroll` | Overflow strategy when content exceeds available cells |
 | `cue-braille-status` | `depth` \| `type` \| `position` \| `none` \| `<template-string>` | `position` | What information status cells display |
 | `cue-braille-literary` | `true` \| `false` | `true` | Whether to apply literary braille formatting (capitalization indicators, number signs). When false, raw dot patterns are used. |
 
-### 3.7 Cue: Urgency & Boundary
+### 3.6 Cue: Urgency & Boundary
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -172,7 +182,7 @@ temporal encoders.
 | `cue-interrupt` | `never` \| `polite` \| `assertive` \| `immediate` | `polite` | When this element may interrupt |
 | `cue-boundary` | `none` \| `scope` \| `jump` | `none` | Boundary crossing signal type |
 
-### 3.8 Timing & Transitions
+### 3.7 Timing & Transitions
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -181,7 +191,7 @@ temporal encoders.
 | `cue-transition-duration` | `<ms>` | `0` | Transition duration |
 | `cue-transition-timing` | `linear` \| `ease` \| `ease-in` \| `ease-out` \| `cubic-bezier(...)` | `ease` | Easing function |
 
-### 3.9 Animations
+### 3.8 Animations
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -193,14 +203,14 @@ temporal encoders.
 | `cue-animation-timing` | (same as transition-timing) | `ease` | Easing function |
 | `cue-animation-play-state` | `running` \| `paused` | `running` | Play state |
 
-### 3.10 Custom Properties
+### 3.9 Custom Properties
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
 | `--*` | any value | — | User-defined custom property |
 | `var(--name)` | — | — | Reference a custom property value |
 
-### 3.11 Counters
+### 3.10 Counters
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|
@@ -508,19 +518,19 @@ trap {
 
 ## 9 Property Summary
 
-**~63 properties** across 11 groups:
+**~63 properties** across channel-based groups and cross-channel concerns:
 
-| Group | Count | Scope |
-|-------|-------|-------|
-| Traversal & presence | 3 | How elements participate in navigation |
-| Navigation | 8 | Cursor behavior and shortcuts |
-| Cue: tone / audio | 16 | Auditory feedback parameters |
-| Cue: haptic | 4 | Vibration feedback parameters |
-| Cue: speech | 8 | Speech synthesis parameters |
-| Cue: braille | 6 | Refreshable braille display parameters |
-| Cue: urgency & boundary | 3 | Interrupt priority and boundary signals |
-| Timing & transitions | 4 | Property transition animation |
-| Animations | 7 | Keyframe-based cue animation |
-| Custom properties | 2 | User-defined variables |
-| Counters | 2 | Sequential counting |
-| **Total** | **~63** | |
+| Group | Count | Channel | Scope |
+|-------|-------|---------|-------|
+| Audio: tone & motif | 16 | Audio | Tonal, earcon, and spatial audio parameters |
+| Audio: speech | 8 | Audio | Speech synthesis parameters (linguistic audio content) |
+| Haptic motor | 4 | Haptic motor | Vibration feedback parameters |
+| Tactile-text | 6 | Tactile-text | Refreshable braille / pin array parameters |
+| Urgency & boundary | 3 | Cross-channel | Interrupt priority and boundary signals |
+| Traversal & presence | 3 | Cross-channel | How elements participate in navigation |
+| Navigation | 8 | Cross-channel | Cursor behavior and shortcuts |
+| Timing & transitions | 4 | Cross-channel | Property transition animation |
+| Animations | 7 | Cross-channel | Keyframe-based cue animation |
+| Custom properties | 2 | Cross-channel | User-defined variables |
+| Counters | 2 | Cross-channel | Sequential counting |
+| **Total** | **~63** | | |
