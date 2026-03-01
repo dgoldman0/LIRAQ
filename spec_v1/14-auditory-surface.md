@@ -220,7 +220,8 @@ The active encoder set depends on the surface's `output-mode` configuration.
 When `output-mode` includes `braille` or `braille+speech`, the surface
 instantiates an **Inscriptor**
 (see [05-inscriptor](../1D-UI/05-inscriptor.md)) alongside the
-Inceptor's temporal encoders. Both consume the same SOM tree.
+Insonitor's audio encoders and the Inceptor's haptic encoder. All three
+consume the same SOM tree.
 
 ### 5.4 Speech Model
 
@@ -504,19 +505,23 @@ shared source of truth; each surface projects it through its own pipeline.
 
 ## 13 Standalone Mode
 
-SML also works without LIRAQ. In standalone mode, the **Inceptor**
-(see [04-inceptor](../1D-UI/04-inceptor.md)) processes the
-document directly:
+SML also works without LIRAQ. In standalone mode, the **Explorer**
+instantiates the SOM and whichever channel engines the surface requires
+(see [06-insonitor](../1D-UI/06-insonitor.md),
+[04-inceptor](../1D-UI/04-inceptor.md),
+[05-inscriptor](../1D-UI/05-inscriptor.md)) to process the document
+directly:
 
 - Applications author SML directly (static markup).
 - No UIDL, no state tree, no LEL, no DCS.
-- The Inceptor parses, styles with CSL, navigates, and encodes.
+- The Explorer parses, styles with CSL, navigates, and encodes through the
+  active channel engines.
 - Application code can mutate the SOM tree directly via the standard
   mutation interface (see [03-sequential-object-model](../1D-UI/03-sequential-object-model.md) §9).
 
-This is analogous to opening a local HTML file in a browser. The browser is
+This is analogous to opening a local HTML file in an Explorer. The Explorer is
 the constant — it doesn't have a "standalone mode" vs "server mode." It
-just processes the document. The Inceptor works the same way.
+just processes the document. The channel engines work the same way.
 
 The standalone and LIRAQ-integrated paths share everything: SOM tree model,
 CSL styling, navigation model, cue grammar, and output encoding. The only

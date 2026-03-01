@@ -45,29 +45,75 @@ _surfaces.active         → runtime surface list
 
 References to non-existent paths evaluate to `null`.
 
-### 2.3 Function Calls
+### 2.3 Infix Operators
+
+Arithmetic, comparison, and logic operators use conventional infix syntax.
+Infix operators are syntactic sugar over the built-in functions (§3) — they
+follow the same totality rules (division by zero → 0, type mismatch →
+0/false/'').
+
+| Category | Operators | Precedence (high → low) |
+|----------|-----------|------------------------|
+| Unary | `not`, `-` (negation) | 1 |
+| Multiplicative | `*`, `/`, `%` | 2 |
+| Additive | `+`, `-` | 3 |
+| Comparison | `>`, `>=`, `<`, `<=` | 4 |
+| Equality | `==`, `!=` | 5 |
+| Logical AND | `and` | 6 |
+| Logical OR | `or` | 7 |
+| Conditional | `... ? ... : ...` | 8 (lowest) |
+
+```
+ship.power > 80 ? 'nominal' : ship.power > 40 ? 'reduced' : 'critical'
+sensors.pressure * 1.5 + offset
+user.role == 'admin' and feature.enabled
+```
+
+**String concatenation via `+`.** When either operand is a string, `+`
+concatenates (coercing the other operand via `to-string`). This matches the
+`concat()` function for the common two-operand case. Use `concat()` for
+variadic concatenation (three or more segments).
+
+**Parenthesized grouping.** `(expr)` overrides default precedence:
+
+```
+(ship.power + ship.reserve) * efficiency
+```
+
+### 2.4 Function Calls
 
 ```
 function-name(arg1, arg2, ...)
 ```
 
-All computation is done through functions. There are no infix operators.
+All built-in functions (§3) can also be called in prefix form. The function-
+call syntax is equivalent to the corresponding infix operator and remains
+valid — it is not deprecated.
 
 ```
-add(ship.power, 10)
-gt(sensors.pressure, 90)
-concat('Alert: ', alerts.active.0.message)
+add(ship.power, 10)          — equivalent to: ship.power + 10
+gt(sensors.pressure, 90)     — equivalent to: sensors.pressure > 90
+concat('Alert: ', msg)       — equivalent to: 'Alert: ' + msg
 ```
 
-### 2.4 Nesting
+The function-call form is preferred when deeply nesting or when variadic
+(e.g., `concat(a, b, c, d)` is cleaner than `a + b + c + d`).
 
-Functions can be nested to arbitrary depth (within the 2048-character limit):
+### 2.5 Nesting
+
+Expressions can be nested to arbitrary depth (within the 2048-character limit):
+
+```
+ship.power > 80 ? 'nominal' : ship.power > 40 ? 'reduced' : 'critical'
+```
+
+The equivalent function-call form is also valid:
 
 ```
 if(gt(ship.power, 80), 'nominal', if(gt(ship.power, 40), 'reduced', 'critical'))
 ```
 
-### 2.5 Context Variables
+### 2.6 Context Variables
 
 Within collection templates, special variables are available:
 
@@ -221,9 +267,19 @@ The `=` prefix is **not** part of the LEL syntax; it is a UIDL convention.
 ## 5 Grammar
 
 ```ebnf
-expression     = function-call | state-ref | literal-value | context-var
+expression     = ternary
 
-function-call  = identifier '(' arg-list? ')'
+ternary        = or-expr ( '?' expression ':' expression )?
+or-expr        = and-expr ( 'or' and-expr )*
+and-expr       = equality ( 'and' equality )*
+equality       = comparison ( ( '==' | '!=' ) comparison )?
+comparison     = additive ( ( '>' | '>=' | '<' | '<=' ) additive )?
+additive       = multiplicative ( ( '+' | '-' ) multiplicative )*
+multiplicative = unary ( ( '*' | '/' | '%' ) unary )*
+unary          = ( 'not' | '-' ) unary | postfix
+postfix        = primary ( '(' arg-list? ')' | '.' path-segment )*
+primary        = '(' expression ')' | literal-value | context-var | identifier
+
 arg-list       = expression ( ',' expression )*
 
 state-ref      = identifier ( '.' path-segment )*
@@ -248,6 +304,37 @@ A bare identifier followed by `(` is a function call. A bare identifier
 followed by `.` or end-of-expression is a state reference. This is unambiguous
 because function names and state path segments share the same character set but
 function calls always require parentheses.
+
+Infix operators bind by precedence (§2.3). Parenthesized grouping `(expr)`
+overrides precedence. The parser distinguishes grouping parentheses from
+function-call parentheses by context: `(` following an identifier is a
+function call; `(` at expression-start or after an operator is grouping.
+
+### 5.2 Infix / Prefix Equivalence
+
+Every infix expression has an equivalent function-call form:
+
+| Infix | Function-call equivalent |
+|-------|-------------------------|
+| `a + b` | `add(a, b)` |
+| `a - b` | `sub(a, b)` |
+| `a * b` | `mul(a, b)` |
+| `a / b` | `div(a, b)` |
+| `a % b` | `mod(a, b)` |
+| `-a` | `neg(a)` |
+| `a > b` | `gt(a, b)` |
+| `a >= b` | `gte(a, b)` |
+| `a < b` | `lt(a, b)` |
+| `a <= b` | `lte(a, b)` |
+| `a == b` | `eq(a, b)` |
+| `a != b` | `neq(a, b)` |
+| `a and b` | `and(a, b)` |
+| `a or b` | `or(a, b)` |
+| `not a` | `not(a)` |
+| `c ? t : e` | `if(c, t, e)` |
+
+A conforming implementation MUST accept both forms and produce identical
+results.
 
 ---
 

@@ -210,8 +210,9 @@ Every cursor movement emits an event on the SOMDocument:
 | `jump` | Cursor jumps to a non-adjacent element | `{from, to}` |
 
 These events are the hooks that channel engines
-(see [04-inceptor](04-inceptor.md), [05-inscriptor](05-inscriptor.md))
-use to trigger output, announcements, and scope transition effects.
+(see [06-insonitor](06-insonitor.md), [04-inceptor](04-inceptor.md),
+[05-inscriptor](05-inscriptor.md)) use to trigger output, announcements, and
+scope transition effects.
 
 ---
 
@@ -424,24 +425,30 @@ Each channel is served by a **channel engine** — a runtime component that read
 resolved cues from the CueMap (§6), produces output for its channel's hardware,
 and processes input from its channel's devices.
 
-| Channel engine | Channels served | Output model | Spec |
-|---------------|----------------|-------------|------|
-| **Inceptor** | Audio + haptic motor | Temporal — signals on a timeline that come and go | [04-inceptor](04-inceptor.md) |
+| Channel engine | Channel | Output model | Spec |
+|---------------|---------|-------------|------|
+| **Insonitor** | Audio | Temporal — signals on a timeline that come and go | [06-insonitor](06-insonitor.md) |
+| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline | [04-inceptor](04-inceptor.md) |
 | **Inscriptor** | Tactile-text | Spatial — persistent content in a fixed-width cell array | [05-inscriptor](05-inscriptor.md) |
 
-The Inceptor serves two channels because audio and haptic motor share a
-temporal output model: signals are synthesized, mixed on a timeline, faded,
-ducked, and sequenced. The Inscriptor serves one channel because tactile-text
-has a fundamentally different output model: a fixed-width array of persistent
-cells with viewport panning, character-level addressing, and buffer
-save/restore.
+The Insonitor and Inceptor share a temporal output model: signals are
+synthesized, mixed on a timeline, faded, ducked, and sequenced. But they are
+independent engines — each owns its own encoder pipeline, each can run without
+the other, and neither calls into the other. The shared temporal infrastructure
+(lane table, priority ducking, scheduling) lives in the SOM (§8), not inside
+either engine.
 
-An implementation MAY run both engines simultaneously against the same SOM
-tree. In this configuration, a single cursor movement produces temporal output
-(audio cues, haptic pulses) from the Inceptor AND spatial output (cell update)
-from the Inscriptor, in parallel.
+The Inscriptor has a fundamentally different output model: a fixed-width array
+of persistent cells with viewport panning, character-level addressing, and
+buffer save/restore.
 
-An implementation MAY also run either engine alone.
+An implementation MAY run any combination of engines simultaneously against
+the same SOM tree. In this configuration, a single cursor movement produces
+audio output (tones, earcons, speech) from the Insonitor, haptic output
+(vibration patterns) from the Inceptor, AND spatial output (cell update) from
+the Inscriptor, in parallel.
+
+An implementation MAY also run any single engine alone.
 
 ### 7.3 Channel Independence
 
@@ -465,12 +472,12 @@ The active channel set is determined by the surface configuration
 
 | Configuration | Active channels | Active engines |
 |--------------|----------------|----------------|
-| `audio` | Audio | Inceptor |
+| `audio` | Audio | Insonitor |
 | `haptic` | Haptic motor | Inceptor |
-| `audio+haptic` | Audio + haptic motor | Inceptor |
+| `audio+haptic` | Audio + haptic motor | Insonitor + Inceptor |
 | `tactile-text` | Tactile-text | Inscriptor |
-| `tactile-text+speech` | Tactile-text + audio (speech subset) | Inscriptor + Inceptor (speech only) |
-| `all` | Audio + haptic motor + tactile-text | Inceptor + Inscriptor |
+| `tactile-text+speech` | Tactile-text + audio (speech subset) | Inscriptor + Insonitor (speech only) |
+| `all` | Audio + haptic motor + tactile-text | Insonitor + Inceptor + Inscriptor |
 | `quiet` | None | Quiet encoder (logging only) |
 
 ---
@@ -480,6 +487,11 @@ The active channel set is determined by the surface configuration
 The **LaneTable** routes content to priority levels. Lanes are a cross-channel
 concept: every active channel interprets lane assignments through its own
 output model.
+
+The SOM owns the lane table. The Insonitor and Inceptor each read lane
+assignments from the shared table and apply them through their respective
+output models. This avoids coupling the two temporal engines to each other
+while ensuring consistent priority behavior across channels.
 
 ### 8.1 Standard Lanes
 
@@ -506,17 +518,18 @@ Content assignment to lanes:
 
 Each channel expresses lane priority through its own medium:
 
-| Lane transition | Audio channel | Haptic motor channel | Tactile-text channel |
+| Lane transition | Audio channel (Insonitor) | Haptic motor channel (Inceptor) | Tactile-text channel (Inscriptor) |
 |----------------|---------------|---------------------|---------------------|
 | Interrupt preempts foreground | Fade out foreground, play interrupt audio | Suspend foreground pattern, play interrupt pulse | Save cell buffer, render interrupt content |
 | Foreground + background | Background ducks (volume reduced) or pauses | Background patterns suppressed | N/A (single display surface) |
 | Interrupt ends | Restore foreground, fade in | Resume foreground pattern | Restore saved cell buffer |
 | Background during idle | Plays at normal volume | Plays ambient patterns | N/A |
 
-Lane mixing semantics specific to the temporal channels are defined by the
-Inceptor (see [04-inceptor](04-inceptor.md) §4). Interrupt handling specific
-to the tactile-text channel is defined by the Inscriptor
-(see [05-inscriptor](05-inscriptor.md) §9).
+Lane mixing semantics specific to the audio channel are defined by the
+Insonitor (see [06-insonitor](06-insonitor.md) §4). Lane mixing for the haptic
+motor channel is defined by the Inceptor (see [04-inceptor](04-inceptor.md)
+§4). Interrupt handling specific to the tactile-text channel is defined by the
+Inscriptor (see [05-inscriptor](05-inscriptor.md) §9).
 
 ---
 
@@ -558,6 +571,9 @@ keyboard, a voice command, a braille chord, and a switch press all produce the
 same semantic action.
 
 #### Audio channel input (microphone / voice)
+
+Voice input is handled by the Insonitor's voice input pipeline (see
+[06-insonitor](06-insonitor.md) §6), which produces semantic actions:
 
 | Raw event | Semantic action |
 |----------|----------------|
@@ -683,8 +699,8 @@ When the cursor moves to a new position, the runtime dispatches cue information
 to all active channel engines. Each engine interprets the resolved cue through
 its own output model:
 
-| Cue phase | Audio channel (Inceptor) | Haptic motor channel (Inceptor) | Tactile-text channel (Inscriptor) |
-|-----------|-------------------------|-------------------------------|----------------------------------|
+| Cue phase | Audio channel (Insonitor) | Haptic motor channel (Inceptor) | Tactile-text channel (Inscriptor) |
+|-----------|--------------------------|-------------------------------|----------------------------------|
 | Movement | Play movement earcon (step, wrap, jump) | Fire movement haptic (tick, bump) | Update status cells |
 | Identity | Play element tone with waveform/envelope | Fire identity haptic pattern | Render element text to cell array |
 | State | Apply pitch/timbre modifiers for state flags | Adjust intensity for state flags | Append state indicators to content |

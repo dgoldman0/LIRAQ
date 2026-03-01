@@ -109,8 +109,8 @@ CSL supports the full CSS selector syntax.
 
 ### 3.3 Audio Channel Properties
 
-All audio channel properties are consumed by the Inceptor's audio encoder
-(see [04-inceptor](04-inceptor.md) §5). Speech properties control linguistic
+All audio channel properties are consumed by the Insonitor's audio encoder
+(see [06-insonitor](06-insonitor.md) §5). Speech properties control linguistic
 content delivered through audio hardware — speech is part of the audio channel,
 not a separate output path.
 
@@ -151,7 +151,7 @@ not a separate output path.
 ### 3.4 Haptic Motor Channel Properties
 
 Consumed by the Inceptor's haptic motor encoder
-(see [04-inceptor](04-inceptor.md) §6).
+(see [04-inceptor](04-inceptor.md) §5).
 
 | Property | Values | Default | Description |
 |----------|--------|---------|-------------|

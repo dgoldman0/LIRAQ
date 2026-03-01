@@ -19,7 +19,7 @@ ordering, and transactional behavior.
 
 ## 2 Wire Format
 
-All patch operations use the LCF `[[batch]]` format:
+All patch operations use the DCS message `batch` format:
 
 ```toml
 [action]
@@ -176,7 +176,7 @@ Note: `delay` is only meaningful within behavior graph steps. In a DCS batch,
 ## 5 Element Specification Format
 
 The `add-element` and `replace-children` operations require element
-specifications in LCF:
+specifications in the DCS message format:
 
 ### 5.1 Single Element
 

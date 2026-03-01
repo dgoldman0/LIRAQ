@@ -228,9 +228,9 @@ All failures within a batch cause the entire batch to be rejected atomically.
 
 ---
 
-## 9 LCF Wire Format
+## 9 Wire Format
 
-Every operation is expressed as a `[[batch]]` entry in LCF:
+Every operation is expressed as a `[[batch]]` entry in the DCS message format:
 
 ```toml
 [[batch]]

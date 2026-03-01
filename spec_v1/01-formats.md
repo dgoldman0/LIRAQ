@@ -6,70 +6,112 @@
 
 ## 1 Overview
 
-LIRAQ uses three serialization formats, each chosen for a specific role:
+LIRAQ uses three classes of format, each chosen for a specific role:
 
 | Format | Role | Used by |
 |--------|------|---------|
 | **XML** | Semantic document structure (UIDL) | Runtime, DCS (read-only view) |
-| **LCF** | DCS ↔ Runtime wire protocol | All DCS communication |
+| **DCS message format** | DCS ↔ Runtime wire protocol — serialization-agnostic | All DCS communication |
 | **YAML** | Presentation profiles | Profile authors, runtime |
 
-No JSON appears on any DCS-facing surface. This section specifies each format's
-conventions and the rationale for the choices.
+This section specifies each format's conventions and the rationale for the
+choices.
 
 ---
 
-## 2 LCF — LIRAQ Communication Format
+## 2 DCS Message Format
 
-LCF is a strict subset of TOML 1.0 with additional conventions. It is the sole
-wire format for DCS queries, mutations, and responses.
+The DCS message format defines the **message semantics** — envelope structure,
+batch format, mutation operations, and query shapes — independently of any
+specific serialization. A conforming implementation MUST support at least one
+of the following serializations:
 
-### 2.1 Why LCF
+| Serialization | Rationale |
+|---------------|-----------|
+| **JSON** | Universal interop — every language, HTTP library, and API ecosystem supports it natively |
+| **TOML** | Human-readable, flat structure — natural fit for text-based transports like Rabbit |
 
-Structured controllers (language models, template engines, rule systems) produce
-more reliable output when the format has:
+Implementations MAY support additional serializations (MessagePack, CBOR,
+etc.). The choice of serialization is a transport concern, not a message-
+semantics concern.
 
-- **Minimal delimiter nesting.** LCF uses `[headers]` and `key = value` lines
-  rather than nested braces and brackets.
-- **No quoting ambiguity.** Keys are bare or single-quoted. Values use TOML
-  quoting rules.
-- **Flat-when-possible structure.** Deeply nested content is rare. Most messages
-  are 1–2 levels deep.
-- **Inline tables only where short.** Arrays of tables use `[[double-bracket]]`
-  syntax, keeping each entry visually separated.
+### 2.1 Key Conventions
 
-LCF inherits TOML's type system: strings, integers, floats, booleans, datetimes,
-arrays, and tables.
+All keys use `kebab-case`, regardless of serialization:
 
-### 2.2 Conventions
+**JSON:**
+```json
+{
+  "element-id": "nav-panel",
+  "surface-id": "primary"
+}
+```
 
-#### Keys
-
-All keys use `kebab-case`:
-
+**TOML:**
 ```toml
 element-id = "nav-panel"
 surface-id = "primary"
 ```
 
-#### Message envelope
+### 2.2 Message Envelope
 
-Every DCS→Runtime message has a top-level `[action]` header:
+Every DCS→Runtime message carries an `action` with a `type` field. Every
+Runtime→DCS message carries a `result` with a `status` field.
 
-```toml
-[action]
-type = "batch"
+#### Request
+
+**JSON:**
+```json
+{
+  "action": {
+    "type": "query",
+    "method": "get-state",
+    "path": "navigation.active"
+  }
+}
 ```
 
-Every Runtime→DCS message has a top-level `[result]` header:
+**TOML:**
+```toml
+[action]
+type = "query"
+method = "get-state"
+path = "navigation.active"
+```
 
+#### Response (success)
+
+**JSON:**
+```json
+{
+  "result": {
+    "status": "ok",
+    "value": "systems"
+  }
+}
+```
+
+**TOML:**
 ```toml
 [result]
 status = "ok"
+value = "systems"
 ```
 
-Error responses:
+#### Response (error)
 
+**JSON:**
+```json
+{
+  "result": {
+    "status": "error",
+    "error": "element-not-found",
+    "detail": "No element with id 'nav-panel'"
+  }
+}
+```
+
+**TOML:**
 ```toml
 [result]
 status = "error"
@@ -77,10 +119,31 @@ error = "element-not-found"
 detail = "No element with id 'nav-panel'"
 ```
 
-#### Batch mutations
+### 2.3 Batch Mutations
 
-Multiple mutations are sent as an array of tables under `[[batch]]`:
+Multiple mutations are sent as an array of entries under `batch`:
 
+**JSON:**
+```json
+{
+  "action": { "type": "batch" },
+  "batch": [
+    {
+      "op": "set-state",
+      "path": "navigation.active",
+      "value": "systems"
+    },
+    {
+      "op": "set-attribute",
+      "element-id": "title-label",
+      "attribute": "text",
+      "value": "Systems Overview"
+    }
+  ]
+}
+```
+
+**TOML:**
 ```toml
 [action]
 type = "batch"
@@ -97,30 +160,25 @@ attribute = "text"
 value = "Systems Overview"
 ```
 
-The runtime commits all entries atomically. If any entry fails, the entire batch
-is rejected and the `[result]` reports the first failure.
+The runtime commits all entries atomically. If any entry fails, the entire
+batch is rejected and the result reports the first failure.
 
-#### Queries
-
-```toml
-[action]
-type = "query"
-method = "get-state"
-path = "navigation.active"
-```
-
-Response:
-
-```toml
-[result]
-status = "ok"
-value = "systems"
-```
-
-#### Element references
+### 2.4 Element References
 
 When a message refers to an element, use the key `element-id`:
 
+**JSON:**
+```json
+{
+  "action": {
+    "type": "query",
+    "method": "get-element",
+    "element-id": "nav-panel"
+  }
+}
+```
+
+**TOML:**
 ```toml
 [action]
 type = "query"
@@ -128,33 +186,34 @@ method = "get-element"
 element-id = "nav-panel"
 ```
 
-This avoids collision with TOML's reserved meaning of `id` within table
-contexts.
-
-#### Dotted paths
+### 2.5 Dotted Paths
 
 State tree paths use dot notation in string values:
 
-```toml
+```
 path = "user.preferences.density"
 ```
 
-### 2.3 LCF Grammar (delta from TOML 1.0)
-
-LCF is valid TOML 1.0. The following additional constraints apply:
-
-1. All keys MUST be `kebab-case` (lowercase ASCII, hyphens).
-2. Top-level DCS→Runtime messages MUST contain exactly one `[action]` table.
-3. Top-level Runtime→DCS messages MUST contain exactly one `[result]` table.
-4. Batch messages MUST use `[[batch]]` array-of-tables.
-5. Inline tables MUST NOT exceed 80 characters.
-6. Multi-line strings SHOULD use triple-quote (`"""`) syntax.
-7. Comments are permitted and ignored by the runtime.
-
-### 2.4 Capabilities Declaration
+### 2.6 Capabilities Declaration
 
 A DCS can declare its capabilities in its initial handshake:
 
+**JSON:**
+```json
+{
+  "action": { "type": "handshake" },
+  "capabilities": {
+    "version": "1.0",
+    "queries": true,
+    "mutations": true,
+    "behaviors": true,
+    "surfaces": true,
+    "max-batch-size": 50
+  }
+}
+```
+
+**TOML:**
 ```toml
 [action]
 type = "handshake"
@@ -167,6 +226,31 @@ behaviors = true
 surfaces = true
 max-batch-size = 50
 ```
+
+### 2.7 Message Format Constraints
+
+Regardless of serialization:
+
+1. All keys MUST be `kebab-case` (lowercase ASCII, hyphens).
+2. DCS→Runtime messages MUST contain exactly one `action` object.
+3. Runtime→DCS messages MUST contain exactly one `result` object.
+4. Batch messages MUST use an `action.type` of `"batch"` and a `batch` array.
+5. Implementations MUST declare which serialization(s) they support during
+   handshake.
+
+### 2.8 Transport and Serialization
+
+The choice of serialization is determined by the transport:
+
+| Transport | Natural serialization | Notes |
+|-----------|----------------------|-------|
+| Rabbit (text frames) | TOML | Rabbit's human-readable philosophy aligns with TOML |
+| HTTP / WebSocket | JSON | Universal HTTP ecosystem default |
+| gRPC | Protobuf / JSON | gRPC-native or JSON transcoding |
+| Local IPC (pipes) | JSON or TOML | Implementation choice |
+
+See [13-transport-compatibility](13-transport-compatibility.md) for transport
+evaluation and binding details.
 
 ---
 
@@ -346,11 +430,11 @@ roles:
 
 | Scenario | Format | Reason |
 |----------|--------|--------|
-| DCS sends a mutation | LCF | Reliable structured output, flat syntax |
-| Runtime returns query results | LCF | Symmetric with requests |
+| DCS sends a mutation | DCS message format (JSON or TOML) | Reliable structured output |
+| Runtime returns query results | DCS message format (JSON or TOML) | Symmetric with requests |
 | UIDL document stored/transferred | XML | Tree structure, namespaced, validatable |
 | Presentation profile authored | YAML | Designer-friendly, commentable |
-| State tree snapshot exported | LCF | Consistent with DCS interface |
+| State tree snapshot exported | DCS message format | Consistent with DCS interface |
 | Accommodation profile declared | YAML | User/administrator authored |
 
 ---
@@ -358,5 +442,5 @@ roles:
 ## 6 Encoding
 
 All formats use UTF-8 encoding without BOM. Line endings are `\n` (LF). Maximum
-message size for LCF is 64 KiB per message (batch entries count individually
-toward element limits, not toward message size).
+message size for DCS messages is 64 KiB per message (batch entries count
+individually toward element limits, not toward message size).

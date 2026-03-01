@@ -10,9 +10,10 @@ The DCS (Document Control System) API defines the interface between any
 controller and the LIRAQ runtime. A DCS reads document state, mutates the
 document, manages surfaces, and responds to events — all through this API.
 
-The API is **transport-agnostic**. It specifies message semantics in LCF format.
-How those messages travel (function calls, pipes, HTTP, WebSocket, Rabbit
-protocol) is an implementation concern.
+The API is **transport-agnostic**. It specifies message semantics in the DCS
+message format (see [01-formats](01-formats.md) §2). How those messages travel
+(function calls, pipes, HTTP, WebSocket, Rabbit protocol) is an implementation
+concern.
 
 ---
 
@@ -446,7 +447,7 @@ interactions, poll or journal for periodic updates.
 ## 8 Platform Adapters
 
 The DCS API is transport-agnostic. Platform adapters translate between the
-abstract LCF protocol and a specific transport.
+abstract message protocol and a specific transport.
 
 ### 8.1 Function-Call Adapter
 
@@ -457,27 +458,27 @@ runtime.query({ method: "get-state", path: "navigation.active" })
 runtime.batch([{ op: "set-state", path: "navigation.active", value: "systems" }])
 ```
 
-The adapter serializes/deserializes LCF internally.
+The adapter serializes/deserializes DCS messages internally.
 
 ### 8.2 Pipe Adapter
 
 For DCS implementations communicating over stdin/stdout:
 
 ```
-DCS writes LCF to stdout → adapter reads → runtime processes → adapter writes LCF to DCS stdin
+DCS writes messages to stdout → adapter reads → runtime processes → adapter writes response to DCS stdin
 ```
 
 ### 8.3 HTTP Adapter
 
 ```
-POST /api/query  → LCF body → LCF response
-POST /api/batch  → LCF body → LCF response
-GET  /api/notify → SSE stream of LCF notifications
+POST /api/query  → JSON/TOML body → JSON/TOML response
+POST /api/batch  → JSON/TOML body → JSON/TOML response
+GET  /api/notify → SSE stream of notifications
 ```
 
 ### 8.4 Rabbit Adapter
 
-See [13-rabbit-integration](13-rabbit-integration.md) for the Rabbit protocol
+See [13-transport-compatibility](13-rabbit-integration.md) for the Rabbit protocol
 adapter.
 
 ---

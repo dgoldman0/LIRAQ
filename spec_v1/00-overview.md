@@ -39,9 +39,9 @@ surface type.
    and side-effect-free.
 6. **Atomic mutations.** All state and document changes commit atomically in
    batches. No observer sees partial updates.
-7. **Transport independence.** DCS communication uses LCF (a TOML-derived
-   format). The transport layer is unspecified — function calls, pipes, HTTP,
-   Rabbit, or anything else.
+7. **Transport independence.** DCS communication uses a serialization-agnostic
+   message format (JSON, TOML, or other). The transport layer is unspecified —
+   function calls, pipes, HTTP, Rabbit, or anything else.
 
 ---
 
@@ -52,7 +52,7 @@ surface type.
 │                        DCS                          │
 │   (language model · rule engine · agent · script)   │
 └──────────────────────┬──────────────────────────────┘
-                       │ LCF (queries + mutations)
+                       │ DCS messages (queries + mutations)
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │                   LIRAQ Runtime                     │
@@ -85,7 +85,7 @@ surface type.
 
 | Component | Spec | Description |
 |-----------|------|-------------|
-| Formats | [01-formats](01-formats.md) | LCF wire format, XML conventions, YAML for presentation profiles |
+| Formats | [01-formats](01-formats.md) | DCS message format, XML conventions, YAML for presentation profiles |
 | UIDL | [02-uidl](02-uidl.md) | Semantic element types, arrangement, data binding, representation sets |
 | State Tree | [03-state-tree](03-state-tree.md) | Hierarchical state store, mutations, schema, change journal |
 | LEL | [04-expression-language](04-expression-language.md) | Expression language: syntax, built-ins, grammar |
@@ -97,11 +97,12 @@ surface type.
 | Surface Model | [10-surface-model](10-surface-model.md) | Surface abstraction, projection, input channels, coordination |
 | Accommodations | [11-accommodations](11-accommodations.md) | User preference profiles, adaptation, navigation model |
 | DOM Compatibility | [12-dom-compatibility](12-dom-compatibility.md) | Mapping to browser DOM for visual-browser surfaces |
-| Rabbit Integration | [13-rabbit-integration](13-rabbit-integration.md) | Integration with the Rabbit P2P protocol |
+| Transport Compatibility | [13-transport-compatibility](13-rabbit-integration.md) | Transport requirements and candidate evaluation (Rabbit, HTTP/WS, gRPC, IPC) |
 | SML | [01-sml](../1D-UI/01-sml.md) | Sequential Markup Language for auditory/haptic/1D surfaces (1D-UI spec) |
 | CSL | [02-csl](../1D-UI/02-csl.md) | Cue Stylesheet Language for auditory/haptic presentation (1D-UI spec) |
 | SOM | [03-sequential-object-model](../1D-UI/03-sequential-object-model.md) | Sequential Object Model — in-memory tree API (1D-UI spec) |
-| Inceptor | [04-inceptor](../1D-UI/04-inceptor.md) | Temporal channel engine: cue dispatch → audio / haptic-motor output (1D-UI spec) |
+| Insonitor | [06-insonitor](../1D-UI/06-insonitor.md) | Audio channel engine: tone, earcon, speech synthesis, voice input (1D-UI spec) |
+| Inceptor | [04-inceptor](../1D-UI/04-inceptor.md) | Haptic motor channel engine: vibration pattern generation (1D-UI spec) |
 | Inscriptor | [05-inscriptor](../1D-UI/05-inscriptor.md) | Tactile-text channel engine: SOM tree → refreshable braille / pin-array display (1D-UI spec) |
 | Auditory Surface | [14-auditory-surface](14-auditory-surface.md) | Auditory surface projection and UIDL integration |
 
@@ -113,8 +114,8 @@ surface type.
 |------|------------|
 | **DCS** | Document Control System — any agent that reads and mutates a LIRAQ document |
 | **UIDL** | User-Interface Description Language — the XML vocabulary for semantic document structure |
-| **LCF** | LIRAQ Communication Format — a TOML-derived wire format for DCS interaction |
 | **LEL** | LIRAQ Expression Language — a pure expression language for bindings and conditions |
+| **Explorer** | The runtime host that instantiates surfaces, manages the document tree, and routes I/O — replaces the generic use of "browser" |
 | **Surface** | An abstract presentation target with declared capabilities |
 | **Projection** | The process of mapping semantic elements onto a surface's modality |
 | **Representation set** | A collection of modality-specific content alternatives carried by a `<media>` element |
@@ -130,7 +131,8 @@ surface type.
 | **Scope** | A navigable sub-sequence in an SML document (`seq`, `ring`, `gate`, `trap`) |
 | **Position** | An atomic landing point for the cursor in a 1D interface |
 | **SOM** | Sequential Object Model — the in-memory tree API for parsed SML documents; owns the shared I/O channel model, input router, and processing loop |
-| **Inceptor** | The temporal channel engine that consumes the SOM tree and produces audio and haptic-motor output — one of two peer channel engines |
-| **Inscriptor** | The tactile-text channel engine that consumes the SOM tree and produces cell patterns for refreshable braille / pin-array displays — peer to the Inceptor |
+| **Insonitor** | The audio channel engine that consumes the SOM tree and produces tone, earcon, speech, and voice input — one of three peer channel engines |
+| **Inceptor** | The haptic motor channel engine that consumes the SOM tree and produces vibration patterns — one of three peer channel engines |
+| **Inscriptor** | The tactile-text channel engine that consumes the SOM tree and produces cell patterns for refreshable braille / pin-array displays — peer to the Insonitor and Inceptor |
 
 

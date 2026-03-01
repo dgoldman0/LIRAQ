@@ -17,13 +17,15 @@ written to cells and remains visible until the next update. Navigation means
 updating the cell array to show new content, not producing a fleeting signal.
 
 This is fundamentally different from the temporal output model used by the
-Inceptor (see [04-inceptor](04-inceptor.md)), which drives the audio and
-haptic motor channels. The Inceptor produces signals on a timeline — tones
-that play and vanish, vibrations that pulse and stop. The Inscriptor produces
-a persistent rendering that the user reads at their own pace.
+Insonitor (see [06-insonitor](06-insonitor.md)) and the Inceptor
+(see [04-inceptor](04-inceptor.md)), which drive the audio and haptic motor
+channels respectively. The Insonitor produces signals on a timeline — tones
+that play and vanish, speech that sounds and fades. The Inceptor produces
+vibration patterns that pulse and stop. The Inscriptor produces a persistent
+rendering that the user reads at their own pace.
 
-Both engines are **peers**. Both attach to the same SOM tree and CueMap. Both
-receive the same cursor events and lane routing. Each provides a complete,
+All three engines are **peers**. All attach to the same SOM tree and CueMap.
+All receive the same cursor events and lane routing. Each provides a complete,
 self-sufficient interface to the SML document through its channel's physical
 medium.
 
@@ -40,9 +42,10 @@ The Inscriptor shares the entire 1D navigation model defined by the SOM:
 - **Input router** — tactile-text channel adapters feed the shared cursor (SOM §9)
 - **Lane table** — the same priority routing, expressed spatially
 
-The split occurs at the output boundary. The Inceptor reads audio/haptic
-properties from the CueMap and dispatches to temporal encoders. The Inscriptor
-reads tactile-text properties from the same CueMap and renders to a cell array.
+The split occurs at the output boundary. The Insonitor reads audio properties
+from the CueMap and dispatches to audio encoders. The Inceptor reads haptic
+properties and dispatches to the haptic motor encoder. The Inscriptor reads
+tactile-text properties from the same CueMap and renders to a cell array.
 
 ### 1.2 Independent Operation
 
@@ -53,10 +56,11 @@ routing keys, entering braille chords. Speech may optionally be requested
 through the audio channel if a speaker is available (see SOM §7.4,
 `tactile-text+speech` configuration).
 
-An implementation MAY also run the Inscriptor simultaneously with the Inceptor
-(see SOM §7.2). In this configuration, a single cursor movement produces
-temporal output (audio cues, haptic pulses) AND spatial output (cell update)
-in parallel.
+An implementation MAY also run the Inscriptor simultaneously with the
+Insonitor and/or Inceptor (see SOM §7.2). In this configuration, a single
+cursor movement produces audio output (tones, earcons) from the Insonitor,
+haptic output (vibration patterns) from the Inceptor, AND spatial output
+(cell update) from the Inscriptor, in parallel.
 
 ---
 
@@ -378,9 +382,10 @@ For `<trap>` interrupts, the Inscriptor shows the trap's children as navigable
 content, with routing keys addressing the trap's options.
 
 The Inscriptor does not duck, fade, or mix — it **replaces**. This is the
-spatial equivalent of the Inceptor's temporal interrupt handling. Where the
-Inceptor fades audio and snapshots a timeline position, the Inscriptor saves
-and restores a cell buffer. Different medium, equivalent semantics.
+spatial equivalent of the temporal engines' interrupt handling. Where the
+Insonitor fades audio and snapshots a timeline position, and the Inceptor
+suspends haptic patterns, the Inscriptor saves and restores a cell buffer.
+Different medium, equivalent semantics.
 
 ---
 
@@ -416,15 +421,16 @@ Tactile-text-specific accommodation preferences modify rendering behavior:
 | `braille-status-cells` | Override number of status cells |
 
 These enter the CSL cascade as accommodation overrides (highest priority),
-matching the same pattern used by the Inceptor's accommodation application
-(see [04-inceptor](04-inceptor.md) §7).
+matching the same pattern used by the Insonitor's accommodation application
+(see [06-insonitor](06-insonitor.md) §7) and the Inceptor's
+(see [04-inceptor](04-inceptor.md) §6).
 
 ---
 
 ## 12 LIRAQ Integration
 
 When running within a LIRAQ runtime, the Inscriptor participates in the same
-integration model as the Inceptor:
+integration model as the Insonitor and Inceptor:
 
 ### 12.1 Bridge Connection
 
@@ -438,37 +444,39 @@ does not interact with the LIRAQ bridge directly — it observes SOM events.
 SOM events (cursor-move, activate, value-commit, etc.) are forwarded to the
 LIRAQ runtime by the bridge's event listeners. The Inscriptor does not
 participate in this forwarding — it is purely an output consumer, the same as
-the Inceptor.
+the Insonitor and Inceptor.
 
 ### 12.3 Attention Synchronization
 
 When the LIRAQ runtime issues `set-attention`, the SOM runtime translates it
 to `cursor.jumpTo(id)`. The Inscriptor responds by rendering the new position's
-content to the cell array, just as the Inceptor responds by playing the new
-position's audio cue.
+content to the cell array, just as the Insonitor responds by playing the new
+position's audio cue and the Inceptor fires a haptic pattern.
 
 ### 12.4 Independence
 
 The Inscriptor is a self-contained channel engine. It can be replaced, upgraded,
 or run in a separate process. The interface between the SOM and the Inscriptor
 is: SOM event observation + CueMap property reads. This is identical to the
-interface between the SOM and the Inceptor.
+interface between the SOM and the Insonitor and Inceptor.
 
 ---
 
-## 13 Browser Interop
+## 13 Explorer Hosting
 
-An Inscriptor MAY be implemented in JavaScript running inside a web browser:
+An Inscriptor MAY be implemented as a JavaScript library running inside a
+web-browser-based Explorer. In this configuration:
 
 - Cell output uses the **WebHID API** to communicate with USB/Bluetooth
   refreshable braille displays.
 - Routing key and chord input arrive through the same WebHID connection.
-- The SOM tree is shared with a browser-hosted Inceptor via the same
-  in-memory DOM.
+- The SOM tree is shared with a browser-hosted Insonitor and Inceptor via
+  the same in-memory DOM.
 
-This enables dual output — audio cues from the Inceptor via Web Audio API,
-simultaneous tactile-text rendering from the Inscriptor via WebHID — from a
-single browser-hosted LIRAQ runtime.
+This enables triple output — audio cues from the Insonitor via Web Audio API,
+haptic patterns from the Inceptor via Vibration API, simultaneous tactile-text
+rendering from the Inscriptor via WebHID — from a single browser-hosted
+Explorer.
 
 ---
 
@@ -498,8 +506,8 @@ A conforming Inscriptor MUST:
 13. Respond to SOM events (`cursor-move`, `scope-enter`, `scope-exit`,
     `context-enter`, `context-exit`, `interrupt-start`, `interrupt-end`) by
     updating the cell array.
-14. Operate independently of the Inceptor — the Inscriptor MUST function
-    correctly with or without a peer temporal engine.
+14. Operate independently of the Insonitor and Inceptor — the Inscriptor
+    MUST function correctly with or without peer channel engines.
 
 ### 14.2 Optional Features
 
@@ -512,7 +520,7 @@ A conforming Inscriptor MAY:
 5. Support multi-row tactile-text displays.
 6. Auto-detect display properties from connected hardware.
 
-### 14.3 Browser Hosting
+### 14.3 Explorer Hosting
 
 An Inscriptor implemented as a browser-hosted library MUST use standard web
 APIs (WebHID) and MUST NOT require browser extensions or native plugins for

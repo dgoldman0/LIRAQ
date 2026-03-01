@@ -91,7 +91,7 @@ Every mutation is tagged with a source for auditability:
 | `behavior` | Behavior engine operation, plus `behavior-id` and `step` |
 | `runtime` | Internal runtime update (surfaces, journal, clock) |
 
-### 3.3 LCF Examples
+### 3.3 Wire Format Examples
 
 Single mutation:
 
@@ -277,7 +277,7 @@ type = "query"
 method = "snapshot-state"
 ```
 
-Returns the entire state tree as a nested LCF structure under `[result]`.
+Returns the entire state tree as a nested structure under `[result]`.
 
 ### 6.2 Restore
 
