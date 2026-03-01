@@ -17,20 +17,26 @@ navigation events, element identity, urgency, and interaction state through
 intensity, rhythm, and duration. The Inceptor manages all of this — everything
 the user feels through motor-driven actuators.
 
+On the input side, the Inceptor handles buttons, switches, and touch surfaces:
+press/release detection, long-press discrimination, touch gesture recognition,
+and mapping of raw physical events to semantic actions dispatched to the SOM's
+input router. Haptic I/O is bidirectional — motor output and control input
+travel through the same channel.
+
 The Inceptor does not own the SOM tree, the cursor, the CSL cascade, or the
 navigation loop — those are shared concerns defined by the SOM (see
 [03-sequential-object-model](03-sequential-object-model.md) §§3–10). The
-Inceptor is an output consumer, not the runtime itself.
+Inceptor is an output consumer and input producer, not the runtime itself.
 
 ### 1.1 Peer Engines
 
 The Inceptor is one of three channel engines that attach to a SOM tree:
 
-| Engine | Channel | Output Model |
-|--------|---------|--------------|
-| **Insonitor** | Audio | Temporal — signals on a timeline |
-| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline |
-| **Inscriptor** | Tactile-text | Spatial — persistent cell array |
+| Engine | Channel | Output Model | Input Model |
+|--------|---------|--------------|-------------|
+| **Insonitor** | Audio | Temporal — signals on a timeline | Voice commands → semantic actions |
+| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline | Buttons, switches, touch → semantic actions |
+| **Inscriptor** | Tactile-text | Spatial — persistent cell array | Routing keys, chords, dot entry → semantic + positional actions |
 
 The Inceptor and Insonitor (see [06-insonitor](06-insonitor.md)) share a
 temporal output model. Both read from the SOM's LaneTable (see SOM §8) for
@@ -42,7 +48,10 @@ SOM, not inside either engine.
 
 The Inscriptor (see [05-inscriptor](05-inscriptor.md)) is the spatial channel
 engine. It reads cue properties from the same CueMap and renders persistent
-cell content. Output model differs; input model is shared.
+cell content. Output model differs; input model converges — all three engines
+produce shared semantic actions through the SOM input router (§9), though from
+different physical devices: voice for audio, buttons/switches/touch for haptic,
+routing keys and chords for tactile-text.
 
 ### 1.2 What the Inceptor Owns
 
@@ -52,6 +61,9 @@ cell content. Output model differs; input model is shared.
 | Lane mixing (haptic) | Prioritize and interleave foreground, background, and interrupt haptic content on a timeline |
 | Temporal interrupt handling | Suspend and restore haptic patterns during interrupts |
 | Accommodation application (haptic) | Apply user preference overrides to haptic output |
+| Button / switch capture | Detect press, release, long-press, and multi-switch events from physical controls |
+| Touch gesture recognition | Recognize taps, swipes, and dwell gestures from touch surfaces |
+| Input action routing | Map raw physical events to semantic actions and dispatch to the SOM input router |
 
 ### 1.3 What the Inceptor Does Not Own
 
@@ -74,28 +86,39 @@ cell content. Output model differs; input model is shared.
                     Resolved Cue (from SOM CueMap)
                               │
                               ▼
-┌───────────────────────────────────────────────────────────┐
-│                        Inceptor                           │
-│                                                           │
-│   ┌─────────────────────────────────────────────────┐     │
-│   │              Lane Mixer (haptic)                 │     │
-│   │  foreground ──┬── background ──┬── interrupt     │     │
-│   └──────────────┬┘               │                  │     │
-│                  │                │                   │     │
-│                  ▼                ▼                   │     │
-│           ┌───────────────┐                          │     │
-│           │  Haptic Motor │                          │     │
-│           │  Encoder      │                          │     │
-│           └───────┬───────┘                          │     │
-└───────────────────┼──────────────────────────────────┘     │
-                    │                                        │
-                    ▼                                        │
-             ┌──────────────┐                                │
-             │  Haptic      │                                │
-             │  Motor       │                                │
-             │  (vibration  │                                │
-             │   motor)     │                                │
-             └──────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                           Inceptor                                │
+│                                                                   │
+│   ┌──────────────────────────────┐    ┌─────────────────────────┐ │
+│   │     Lane Mixer (haptic)      │    │   Input Pipeline        │ │
+│   │  foreground ──┬── background │    │                         │ │
+│   │               └── interrupt  │    │ ┌─────────────────────┐ │ │
+│   └──────────────┬───────────────┘    │ │ Raw event capture   │ │ │
+│                  │                    │ │ (press/release/hold) │ │ │
+│                  ▼                    │ ├─────────────────────┤ │ │
+│   ┌──────────────────────────────┐    │ │ Debounce /          │ │ │
+│   │     Haptic Motor Encoder     │    │ │ discrimination      │ │ │
+│   │                              │    │ ├─────────────────────┤ │ │
+│   └──────────────┬───────────────┘    │ │ Action mapper       │ │ │
+│                  │                    │ │ (raw → semantic)    │ │ │
+│                  │                    │ └──────────┬──────────┘ │ │
+│                  │                    └────────────┼────────────┘ │
+│                  │                                │              │
+└──────────────────┼────────────────────────────────┼──────────────┘
+                   │                                │
+                   ▼                                ▼
+            ┌──────────────┐               ┌───────────────┐
+            │  Vibration   │               │ SOM Input     │
+            │  Motor       │               │ Router        │
+            └──────────────┘               └───────────────┘
+
+                                    ▲
+                                    │
+                              ┌─────────────┐
+                              │  Buttons /   │
+                              │  Switches /  │
+                              │  Touch       │
+                              └─────────────┘
 ```
 
 ### 2.1 Component Summary
@@ -104,6 +127,7 @@ cell content. Output model differs; input model is shared.
 |-----------|------|
 | Lane Mixer | Prioritize and interleave haptic content across foreground, background, and interrupt lanes (reads from SOM LaneTable) |
 | Haptic Motor Encoder | Produce vibration motor output: pattern activation, intensity, duration |
+| Input Pipeline | Capture raw events from buttons, switches, and touch surfaces; debounce, discriminate, and map to semantic actions |
 
 ---
 
@@ -255,9 +279,114 @@ Accommodations override specific resolved cue properties after the CSL cascade:
 
 ---
 
-## 7 Document Lifecycle
+## 7 Input Pipeline
 
-### 7.1 Events
+The Inceptor captures input from buttons, switches, and touch surfaces,
+translates raw physical events into semantic actions, and dispatches them
+to the SOM input router (see SOM §9). This is the haptic channel's
+counterpart to the Insonitor's voice input pipeline (see
+[06-insonitor](06-insonitor.md) §6) and the Inscriptor's routing key /
+chord input (see [05-inscriptor](05-inscriptor.md) §§7–8).
+
+### 7.1 Raw Event Capture
+
+The Inceptor receives low-level events from physical controls:
+
+| Device class | Raw events |
+|-------------|------------|
+| Buttons (momentary) | press, release |
+| Switches (toggle/latching) | on, off |
+| Touch surfaces | touch-start, touch-move, touch-end |
+| Multi-switch arrays | press(n), release(n), chord (simultaneous subset) |
+
+Events include timestamp and, where applicable, spatial coordinates (touch)
+or switch index (multi-switch array).
+
+### 7.2 Debounce and Discrimination
+
+Raw events pass through a discrimination layer before action mapping:
+
+| Raw pattern | Discriminated event | Typical threshold |
+|------------|-------------------|------------------|
+| press → release (< threshold) | `tap` | < 300 ms |
+| press → hold (≥ threshold) | `long-press` | ≥ 300 ms |
+| press → release → press → release (< gap) | `double-tap` | < 400 ms gap |
+| touch-start → touch-move (> distance) → touch-end | `swipe(direction)` | > 20 px equivalent |
+| touch-start → hold (> threshold, no move) | `dwell` | ≥ 500 ms |
+
+Thresholds are implementation-defined but SHOULD be configurable through
+accommodation preferences (§6.2). Contact bounce filtering (debounce) is
+applied before discrimination — typically 10–50 ms suppression after
+initial edge.
+
+### 7.3 Action Mapping
+
+Discriminated events are mapped to **semantic actions** — the same set of
+actions that voice commands (Insonitor) and routing keys (Inscriptor) produce:
+
+| Discriminated event | Default semantic action |
+|--------------------|-----------------------|
+| Arrow Right / Arrow Down | `next` |
+| Arrow Left / Arrow Up | `prev` |
+| Enter / tap | `activate` |
+| Escape | `back` |
+| Long-press | `detail` (speak-detail request) |
+| Swipe right | `next` |
+| Swipe left | `prev` |
+| Double-tap | `activate` |
+| Switch press (1-switch auto-scan) | `activate` (selects current scan target) |
+| Switch 1 (2-switch) | `next` |
+| Switch 2 (2-switch) | `activate` |
+
+Action mappings are context-sensitive. The SOM's InputContext state (see SOM
+§5) determines how each action is interpreted:
+
+| Input context | `activate` means | `next` / `prev` means |
+|--------------|-----------------|---------------------|
+| `navigating` | Fire element action | Move cursor |
+| `editing` | Commit value | Adjust value / move within field |
+| `trapped` | Respond to trap prompt | Navigate within trap |
+| `listing` | Select list item | Scroll list |
+
+### 7.4 Dispatch to SOM Input Router
+
+Mapped semantic actions are submitted to the SOM input router (see SOM §9.1)
+via the haptic motor channel adapter. The SOM does not distinguish between
+a `next` from a button press, a voice command, or a routing key — all
+channels produce the same semantic action vocabulary.
+
+```
+Button press → Inceptor discrimination → semantic action → SOM Input Router
+                                                                │
+                                                                ▼
+                                                        InputContext
+                                                        interpreter
+                                                                │
+                                                                ▼
+                                                        Cursor / Context
+                                                        engine (shared)
+```
+
+### 7.5 Auto-Scan Mode
+
+When switch-scanning accommodation is active (§6.2), the Inceptor drives the
+auto-scan timer:
+
+1. The scan timer advances the cursor (`next`) at a fixed interval.
+2. A single switch press fires `activate` on the current position.
+3. Scan speed, direction, and wrap behavior are controlled by accommodation
+   preferences.
+4. In 2-switch mode, one switch advances and the other activates.
+
+Auto-scan is an Inceptor responsibility because it depends on physical switch
+input timing. The SOM provides the cursor movement primitive; the Inceptor
+decides *when* to call it.
+
+---
+
+## 8 Document Lifecycle
+
+### 8.1 Events
 
 The Inceptor listens for SOM events and produces haptic output:
 
@@ -273,7 +402,7 @@ The Inceptor listens for SOM events and produces haptic output:
 | `interrupt-end` | Restore haptic snapshot |
 | `document-mutated` | Recompute and replay haptic cue if cursor is on mutated node |
 
-### 7.2 External Mutation
+### 8.2 External Mutation
 
 When an external source (LIRAQ projection bridge, application script) mutates
 the SOM tree, the SOM runtime handles tree mutation, cue invalidation, and
@@ -287,7 +416,7 @@ cursor validity (see SOM §12.2). The Inceptor responds to the resulting events:
 
 ---
 
-## 8 Multi-Document
+## 9 Multi-Document
 
 An implementation MAY support multiple simultaneous SOM trees (analogous to
 tabs in an Explorer). Each document has independent SOM state. The Inceptor
@@ -296,11 +425,11 @@ to detach from the previous SOM and attach to the new one.
 
 ---
 
-## 9 LIRAQ Integration
+## 10 LIRAQ Integration
 
 When running as part of the auditory surface within a LIRAQ runtime:
 
-### 9.1 Bridge as Document Source
+### 10.1 Bridge as Document Source
 
 The LIRAQ auditory surface bridge (see
 [14-auditory-surface](../spec_v1/14-auditory-surface.md)) produces a SOM tree
@@ -310,14 +439,14 @@ Subsequent UIDL state changes arrive as SOM mutations.
 The Inceptor attaches to the SOM tree and produces haptic output. It does
 not interact with the LIRAQ bridge directly — it observes SOM events.
 
-### 9.2 Attention Synchronization
+### 10.2 Attention Synchronization
 
 When the LIRAQ runtime issues `set-attention` for the auditory surface, the
 SOM runtime translates it to `cursor.jumpTo(id)`, triggering the standard
 navigation sequence. The Inceptor responds with haptic output for the
 resulting cursor events.
 
-### 9.3 Independence
+### 10.3 Independence
 
 The Inceptor is a self-contained channel engine. It can be replaced, upgraded,
 or run in a separate process. The interface between the SOM and the Inceptor
@@ -326,7 +455,7 @@ publish-subscribe pattern used by the Insonitor and the Inscriptor.
 
 ---
 
-## 10 Explorer Hosting
+## 11 Explorer Hosting
 
 An Inceptor MAY be implemented as a JavaScript library running inside a
 web-browser-based Explorer. In this configuration:
@@ -334,13 +463,15 @@ web-browser-based Explorer. In this configuration:
 - The SOM tree is backed by the browser's XML DOM.
 - Haptic motor output uses the **Vibration API** (`navigator.vibrate()`)
   where available.
+- Button and touch input arrives through standard DOM events (`click`,
+  `keydown`, `touchstart`, `touchmove`, `touchend`, `pointerdown`).
 
 When browser-hosted, the Inceptor, Insonitor, and Inscriptor (see
 [05-inscriptor](05-inscriptor.md) §13, [06-insonitor](06-insonitor.md) §11)
 can share the same in-memory DOM. This enables an Explorer to serve all three
 I/O channels from a single browser-hosted deployment.
 
-### 10.1 Vibration API Usage
+### 11.1 Vibration API Usage
 
 | Inceptor component | Web API |
 |---------------------|---------|
@@ -353,7 +484,7 @@ intensity control). Implementations SHOULD map `hapticIntensity` to pattern
 density (shorter off-gaps for higher intensity) when true intensity control
 is unavailable.
 
-### 10.2 Gamepad Haptics
+### 11.2 Gamepad Haptics
 
 When a gamepad is connected, the Inceptor MAY use the Gamepad API's haptic
 actuators for richer output:
@@ -368,9 +499,9 @@ the basic Vibration API.
 
 ---
 
-## 11 Conformance
+## 12 Conformance
 
-### 11.1 Requirements
+### 12.1 Requirements
 
 A conforming Inceptor MUST:
 
@@ -384,26 +515,31 @@ A conforming Inceptor MUST:
 6. Apply accommodation overrides during haptic output production (§6).
 7. Respond to SOM events (`cursor-move`, `scope-enter`, `scope-exit`,
    `context-enter`, `context-exit`, `interrupt-start`, `interrupt-end`) with
-   appropriate haptic output (§7.1).
+   appropriate haptic output (§8.1).
 8. Respond to SOM tree mutations by replaying haptic cues for affected
-   elements (§7.2).
+   elements (§8.2).
 9. Accept SOM mutations from external sources and handle downstream haptic
    effects without requiring the mutator to manage cue production.
 10. Operate independently of the Insonitor and Inscriptor — the Inceptor
     MUST function correctly with or without peer channel engines.
+11. Capture button press and release events from connected input devices and
+    dispatch corresponding semantic actions to the SOM input router (§7).
+12. Apply debounce filtering to raw input events (§7.2).
 
-### 11.2 Optional Features
+### 12.2 Optional Features
 
 A conforming Inceptor MAY:
 
-1. Support multi-document operation (§8).
-2. Implement auto-scan timing for switch scanning accommodation.
-3. Implement dwell activation.
-4. Support custom lanes beyond the three standard lanes.
-5. Support plugin extensions for custom encoders or haptic pattern formats.
-6. Run in quiet mode for testing (§5.2).
+1. Support multi-document operation (§9).
+2. Implement auto-scan timing for switch scanning accommodation (§7.5).
+3. Implement dwell activation on touch surfaces.
+4. Implement touch gesture recognition (tap, swipe, long-press) (§7.2).
+5. Implement long-press discrimination (§7.2).
+6. Support custom lanes beyond the three standard lanes.
+7. Support plugin extensions for custom encoders or haptic pattern formats.
+8. Run in quiet mode for testing (§5.2).
 
-### 11.3 Explorer Hosting
+### 12.3 Explorer Hosting
 
 An Inceptor implemented as a browser-hosted library MUST use standard web APIs
 (Vibration API, optionally Gamepad API) and MUST NOT require browser extensions

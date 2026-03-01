@@ -2,81 +2,84 @@
 
 **A modality-agnostic user interface specification.**
 
-LIRAQ defines how to describe, manage, and present user interfaces without
-privileging any sensory modality. A visual surface and a braille surface are
-peers — neither is primary, neither is an adaptation of the other. The
-specification starts from semantics (what elements *are*) and projects outward
-to surfaces (how elements are *perceived*), rather than starting from one
-modality and retrofitting the rest.
+## The Problem
 
----
+Every mainstream UI framework starts from a visual document and works outward.
+Screen readers scrape a visual DOM and try to recover meaning. Braille displays
+receive whatever the screen reader can extract. Haptic feedback, when it exists
+at all, is a one-shot vibration bolted onto a touch event. Each assistive
+technology reverse-engineers a visual artifact that was never designed for it —
+and the result is a fragile, second-class experience that breaks whenever the
+visual layer changes.
 
-## Architecture
+LIRAQ inverts this. Instead of starting from pixels and retrofitting
+alternative modalities, it starts from **semantics** — what an interface element
+*is* — and projects outward to surfaces that know how to present it. A visual
+surface and a braille surface receive the same semantic document. Neither is
+primary. Neither is an adaptation of the other.
 
-```
-DCS (any controller) ──messages──► LIRAQ Runtime
-                                        │
-              ┌─────────────────────────┼──────────────────┐
-              │                         │                  │
-          State Tree              Behavior Engine    Presentation
-              │                         │             Profiles
-              └──────────┬──────────────┘                │
-                         ▼                               ▼
-                       UIDL ────── projection ──► Surface Manager
-                  (semantic doc)                        │
-                                        ┌──────────────┼──────────────┐
-                                        ▼              ▼              ▼
-                                    Visual        Auditory       Tactile
-                                    Surface       Surface        Surface
-```
+## How It Works
 
-- **UIDL** — an XML vocabulary of 16 semantic element types. Elements carry
-  meaning (`label`, `action`, `container`, `media`), not presentation.
-- **State Tree** — a hierarchical store for all application state. Mutations
-  are atomic batches; a change journal tracks every edit.
-- **LEL** — a pure, total, deterministic expression language for bindings and
-  conditions. No side effects, no divergence, no surprises.
-- **Behavior Engine** — declarative behavior graphs triggered by state changes
-  and user events.
-- **Surfaces** — abstract presentation targets. Each surface declares
-  capabilities and receives a projection of the UIDL document tailored to its
-  modality.
-- **Explorer** — the runtime host that instantiates surfaces, manages document
-  trees, and routes I/O.
+At the center of LIRAQ is **UIDL** (User-Interface Description Language), an
+XML vocabulary of 16 semantic element types. Elements carry meaning — `label`,
+`action`, `container`, `media` — not presentation instructions. A **State
+Tree** holds all application state in a hierarchical store. Mutations are
+atomic batches; a change journal tracks every edit, enabling undo, replay, and
+multi-agent coordination. Bindings between state and the document are expressed
+in **LEL** (LIRAQ Expression Language), a pure, total, deterministic expression
+language. LEL has no side effects and cannot diverge — every expression
+evaluates to a value or a well-defined error, which matters in a UI engine
+where a hung binding would freeze the interface. A **Behavior Engine** drives
+declarative behavior graphs — conditional sequences triggered by state changes
+and user events, without imperative callbacks.
 
----
+The runtime host, called the **Explorer**, instantiates one or more
+**surfaces** — abstract presentation targets that declare their capabilities
+(auditory, tactile, visual) and receive a projection of the semantic document
+tailored to their modality. Surfaces are not passive displays: each channel is
+**bidirectional**. Output flows from the semantic document to the user
+(speech, vibration, braille cells, pixels); input flows from the user back to
+the semantic document (voice commands, button presses, routing keys, touch
+gestures). The Explorer routes both directions.
+
+## Surfaces and Engines
+
+Each surface class maps to a **channel engine** — the component that owns the
+encoding pipeline for its channel's output *and* the input pipeline for its
+channel's physical controls. Three engines are fully specified:
+
+| Engine | Channel | Output | Input |
+|--------|---------|--------|-------|
+| **Insonitor** | Audio | Tones, earcons, speech synthesis | Voice commands via microphone |
+| **Inceptor** | Haptic motor | Vibration patterns, pulses, intensity sequences | Buttons, switches, touch gestures |
+| **Inscriptor** | Tactile-text | Persistent cell arrays on refreshable braille displays | Routing keys, chord entry, dot-key input |
+
+A fourth engine, the **Inplanor**, targets 2D visual surfaces and can also
+drive a 1D visual status bar alongside the other engines (spec pending).
+
+Engines are peers. Each attaches to the same document tree and reads from the
+same cue map. Each can run alone — a braille notetaker runs only the
+Inscriptor; a smart speaker runs only the Insonitor — or in any combination.
+A single cursor movement produces audio, haptic, and tactile output in
+parallel, and a single button press, voice command, or routing key tap produces
+the same semantic action regardless of which channel it came from.
 
 ## 1D-UI: The First Surface Family
 
-The most developed part of the specification is the **1D-UI suite** — a
-complete framework for structured non-visual interfaces. No existing standard
-addresses this space at the level of document authoring, styling, navigation,
-and output encoding.
+The most developed part of the specification is the **1D-UI suite**, a complete
+framework for structured non-visual interfaces. No existing standard addresses
+this space at the level of document authoring, styling, navigation, and
+multi-channel I/O encoding.
 
-1D-UI defines:
-
-- **SML** (Sequential Markup Language) — a document language for interfaces
-  navigated one element at a time: next, previous, enter scope, go back.
-- **CSL** (Cue Stylesheet Language) — a cascading stylesheet language that maps
-  element types and states to audio, haptic, and tactile-text presentation
-  properties.
-- **SOM** (Sequential Object Model) — an in-memory tree API (DOM + 1D
-  extensions) with cursor, focus stack, input context state machine, cue map,
-  lane table, and shared I/O channel model.
-
-Three independent channel engines attach to a SOM tree and produce output:
-
-| Engine | Channel | Output Model |
-|--------|---------|--------------|
-| **Insonitor** | Audio | Temporal — tones, earcons, speech synthesis, voice input |
-| **Inceptor** | Haptic motor | Temporal — vibration patterns, pulses, intensity sequences |
-| **Inscriptor** | Tactile-text | Spatial — persistent cell arrays for refreshable braille displays |
-
-A fourth engine, the **Inplanor**, targets 2D visual surfaces (spec pending).
-It can also drive a 1D visual status bar alongside the other engines.
-
-Each engine can run alone or in any combination. A single cursor movement
-produces audio, haptic, and tactile output in parallel — or any subset.
+1D-UI provides three layers. **SML** (Sequential Markup Language) is a document
+language for interfaces navigated one element at a time — next, previous, enter
+scope, go back. **CSL** (Cue Stylesheet Language) is a cascading stylesheet
+language that maps element types and states to audio, haptic, and tactile-text
+presentation cues. **SOM** (Sequential Object Model) is the in-memory tree API
+that binds them together: it owns the cursor, focus stack, input context state
+machine, cue resolution, lane-based priority routing, and the shared I/O
+channel model through which all three engines — Insonitor, Inceptor,
+Inscriptor — attach, produce output, and process input.
 
 ---
 

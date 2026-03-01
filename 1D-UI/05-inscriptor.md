@@ -47,6 +47,14 @@ from the CueMap and dispatches to audio encoders. The Inceptor reads haptic
 properties and dispatches to the haptic motor encoder. The Inscriptor reads
 tactile-text properties from the same CueMap and renders to a cell array.
 
+Input models converge: all three engines produce the same vocabulary of
+semantic actions through the SOM input router (§9), though from different
+physical devices — voice commands for audio, button/switch/touch for haptic
+motor, routing keys and chords for tactile-text. Input models diverge in
+physical characteristics: voice input is temporal and continuous, button input
+is discrete and event-driven, routing key input is positional (tied to a
+specific cell on the display).
+
 ### 1.2 Independent Operation
 
 An implementation MAY run the Inscriptor alone, with no audio or haptic output.
@@ -443,8 +451,12 @@ does not interact with the LIRAQ bridge directly — it observes SOM events.
 
 SOM events (cursor-move, activate, value-commit, etc.) are forwarded to the
 LIRAQ runtime by the bridge's event listeners. The Inscriptor does not
-participate in this forwarding — it is purely an output consumer, the same as
-the Insonitor and Inceptor.
+participate in this forwarding — event forwarding is the bridge's
+responsibility, not the channel engine's. (The Inscriptor does process
+routing key and chord input from its own channel — see §§7–8 — but those
+enter through the SOM input router, not through bridge forwarding. The
+Insonitor and Inceptor likewise handle voice and button input respectively
+through their own pipelines.)
 
 ### 12.3 Attention Synchronization
 

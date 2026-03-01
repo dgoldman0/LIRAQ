@@ -29,11 +29,11 @@ Insonitor is an output consumer and input producer, not the runtime itself.
 
 The Insonitor is one of three channel engines that attach to a SOM tree:
 
-| Engine | Channel | Output Model |
-|--------|---------|--------------|
-| **Insonitor** | Audio | Temporal — signals on a timeline |
-| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline |
-| **Inscriptor** | Tactile-text | Spatial — persistent cell array |
+| Engine | Channel | Output Model | Input Model |
+|--------|---------|--------------|-------------|
+| **Insonitor** | Audio | Temporal — signals on a timeline | Voice commands → semantic actions |
+| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline | Buttons, switches, touch → semantic actions |
+| **Inscriptor** | Tactile-text | Spatial — persistent cell array | Routing keys, chords, dot entry → semantic + positional actions |
 
 The Insonitor and Inceptor share a temporal output model. Both read from the
 SOM's LaneTable (see SOM §8) for priority routing. Both produce output that
@@ -44,7 +44,10 @@ ducking, scheduling) lives in the SOM, not inside either engine.
 
 The Inscriptor (see [05-inscriptor](05-inscriptor.md)) is the spatial channel
 engine. It reads cue properties from the same CueMap and renders persistent
-cell content. Output model differs; input model is shared.
+cell content. Output model differs; input model converges — all three engines
+produce shared semantic actions through the SOM input router (§9), though from
+different physical devices: voice for audio, buttons/switches/touch for haptic,
+routing keys and chords for tactile-text.
 
 ### 1.2 What the Insonitor Owns
 

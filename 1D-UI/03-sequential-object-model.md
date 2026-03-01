@@ -425,11 +425,11 @@ Each channel is served by a **channel engine** — a runtime component that read
 resolved cues from the CueMap (§6), produces output for its channel's hardware,
 and processes input from its channel's devices.
 
-| Channel engine | Channel | Output model | Spec |
-|---------------|---------|-------------|------|
-| **Insonitor** | Audio | Temporal — signals on a timeline that come and go | [06-insonitor](06-insonitor.md) |
-| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline | [04-inceptor](04-inceptor.md) |
-| **Inscriptor** | Tactile-text | Spatial — persistent content in a fixed-width cell array | [05-inscriptor](05-inscriptor.md) |
+| Channel engine | Channel | Output model | Input model | Spec |
+|---------------|---------|-------------|-------------|------|
+| **Insonitor** | Audio | Temporal — signals on a timeline that come and go | Voice commands → semantic actions | [06-insonitor](06-insonitor.md) |
+| **Inceptor** | Haptic motor | Temporal — vibration patterns on a timeline | Buttons, switches, touch → semantic actions | [04-inceptor](04-inceptor.md) |
+| **Inscriptor** | Tactile-text | Spatial — persistent content in a fixed-width cell array | Routing keys, chords, dot entry → semantic + positional actions | [05-inscriptor](05-inscriptor.md) |
 
 The Insonitor and Inceptor share a temporal output model: signals are
 synthesized, mixed on a timeline, faded, ducked, and sequenced. But they are
@@ -458,7 +458,16 @@ Channels are peers. Each channel:
 - Has its own CSL property group (see [02-csl](02-csl.md) §3).
 - Has its own accommodation overrides.
 - Has its own output model (temporal or spatial).
-- Has its own input devices that produce shared semantic actions.
+- Has its own input devices that produce shared semantic actions:
+  - **Audio** — microphone captures voice commands; the Insonitor's voice
+    pipeline (§6) recognizes speech and maps it to navigation and interaction
+    actions.
+  - **Haptic motor** — buttons, switches, and touch surfaces generate press,
+    hold, and gesture events; the Inceptor's input pipeline (§7) discriminates
+    and maps them to semantic actions.
+  - **Tactile-text** — routing keys identify cell positions for direct
+    navigation; chord keys and dot-entry buttons produce character input and
+    commands.
 
 The SOM is the shared model that all channels read from and write to. The
 cursor, focus stack, input context, and event model are shared across channels.

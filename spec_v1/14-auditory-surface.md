@@ -25,11 +25,11 @@ modification.
 
 The auditory surface declares the following standard capabilities:
 
-| Capability | Present |
-|------------|---------|
-| `auditory` | Yes — speech, earcons, sonification |
-| `tactile` | Yes — haptic feedback, vibration patterns, refreshable braille |
-| `visual` | No |
+| Capability | Can present | Can accept input via |
+|------------|-------------|---------------------|
+| `auditory` | Speech, earcons, sonification | Voice commands (microphone) |
+| `tactile` | Haptic feedback, vibration patterns, refreshable braille | Buttons, switches, touch; routing keys, chords |
+| `visual` | No | No |
 
 ### 2.2 Registration
 
