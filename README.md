@@ -67,9 +67,9 @@ the same semantic action regardless of which channel it came from.
 ## 1D-UI: The First Surface Family
 
 The most developed part of the specification is the **1D-UI suite**, a complete
-framework for structured non-visual interfaces. No existing standard addresses
-this space at the level of document authoring, styling, navigation, and
-multi-channel I/O encoding.
+framework for structured one-dimensional interfaces. No existing standard
+addresses this space at the level of document authoring, styling, navigation,
+and multi-channel I/O encoding.
 
 1D-UI provides three layers. **SML** (Sequential Markup Language) is a document
 language for interfaces navigated one element at a time — next, previous, enter

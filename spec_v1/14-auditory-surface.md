@@ -7,8 +7,8 @@
 ## 1 Purpose
 
 This document defines the **auditory surface type** — a first-class surface
-implementation that projects UIDL documents into one-dimensional, non-visual
-interfaces using SML (see [01-sml](../1D-UI/01-sml.md)) and CSL
+implementation that projects UIDL documents into one-dimensional interfaces
+using SML (see [01-sml](../1D-UI/01-sml.md)) and CSL
 (see [02-csl](../1D-UI/02-csl.md)).
 
 The auditory surface implements the surface abstraction defined in

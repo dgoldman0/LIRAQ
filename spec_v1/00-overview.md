@@ -98,8 +98,8 @@ surface type.
 | Accommodations | [11-accommodations](11-accommodations.md) | User preference profiles, adaptation, navigation model |
 | DOM Compatibility | [12-dom-compatibility](12-dom-compatibility.md) | Mapping to browser DOM for visual-browser surfaces |
 | Transport Compatibility | [13-transport-compatibility](13-rabbit-integration.md) | Transport requirements and candidate evaluation (Rabbit, HTTP/WS, gRPC, IPC) |
-| SML | [01-sml](../1D-UI/01-sml.md) | Sequential Markup Language for auditory/haptic/1D surfaces (1D-UI spec) |
-| CSL | [02-csl](../1D-UI/02-csl.md) | Cue Stylesheet Language for auditory/haptic presentation (1D-UI spec) |
+| SML | [01-sml](../1D-UI/01-sml.md) | Sequential Markup Language for 1D surfaces (1D-UI spec) |
+| CSL | [02-csl](../1D-UI/02-csl.md) | Cue Stylesheet Language for 1D presentation properties (1D-UI spec) |
 | SOM | [03-sequential-object-model](../1D-UI/03-sequential-object-model.md) | Sequential Object Model — in-memory tree API (1D-UI spec) |
 | Insonitor | [06-insonitor](../1D-UI/06-insonitor.md) | Audio channel engine: tone, earcon, speech synthesis; voice input (1D-UI spec) |
 | Inceptor | [04-inceptor](../1D-UI/04-inceptor.md) | Haptic motor channel engine: vibration patterns; button, switch, and touch input (1D-UI spec) |
@@ -124,8 +124,8 @@ surface type.
 | **Presentation profile** | A set of styling rules scoped to surface capabilities |
 | **Accommodation profile** | User-declared preferences that modify projection behavior |
 | **Behavior graph** | A named set of conditional steps executed by the behavior engine |
-| **SML** | Sequential Markup Language — the surface-specific document language for auditory/haptic/1D surfaces |
-| **CSL** | Cue Stylesheet Language — the presentation language for auditory/haptic properties on SML documents |
+| **SML** | Sequential Markup Language — the document language for 1D surfaces |
+| **CSL** | Cue Stylesheet Language — the presentation language for cue properties on SML documents |
 | **Cue** | A symbolic description of what a user should perceive at a navigation step — grouped by I/O channel: audio (tone, motif, speech), haptic motor, and tactile-text |
 | **Earcon** | A short auditory motif that encodes meaning through pitch, rhythm, and timbre |
 | **Scope** | A navigable sub-sequence in an SML document (`seq`, `ring`, `gate`, `trap`) |

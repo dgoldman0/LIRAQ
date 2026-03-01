@@ -389,8 +389,7 @@ When an interrupt arrives (from the SOM's lane routing, see SOM §8):
 For `<trap>` interrupts, the Inscriptor shows the trap's children as navigable
 content, with routing keys addressing the trap's options.
 
-The Inscriptor does not duck, fade, or mix — it **replaces**. This is the
-spatial equivalent of the temporal engines' interrupt handling. Where the
+The Inscriptor replaces rather than ducking, fading, or mixing. Where the
 Insonitor fades audio and snapshots a timeline position, and the Inceptor
 suspends haptic patterns, the Inscriptor saves and restores a cell buffer.
 Different medium, equivalent semantics.
@@ -442,21 +441,20 @@ integration model as the Insonitor and Inceptor:
 
 ### 12.1 Bridge Connection
 
-The SOM tree is produced by the auditory surface bridge
-(see [14-auditory-surface](../spec_v1/14-auditory-surface.md)). The Inscriptor
-attaches to this tree and reads tactile-text cue properties from the CueMap. It
-does not interact with the LIRAQ bridge directly — it observes SOM events.
+The SOM tree is produced by the 1D surface bridge
+(see [14-auditory-surface](../spec_v1/14-auditory-surface.md) for the auditory
+surface example). The Inscriptor attaches to this tree and reads tactile-text
+cue properties from the CueMap. It observes SOM events rather than interacting
+with the bridge directly.
 
 ### 12.2 Event Forwarding
 
 SOM events (cursor-move, activate, value-commit, etc.) are forwarded to the
-LIRAQ runtime by the bridge's event listeners. The Inscriptor does not
-participate in this forwarding — event forwarding is the bridge's
-responsibility, not the channel engine's. (The Inscriptor does process
-routing key and chord input from its own channel — see §§7–8 — but those
-enter through the SOM input router, not through bridge forwarding. The
-Insonitor and Inceptor likewise handle voice and button input respectively
-through their own pipelines.)
+LIRAQ runtime by the bridge's event listeners; event forwarding is
+the bridge's responsibility. The Inscriptor processes routing key and
+chord input from its own channel (see §§7–8) through the SOM input
+router. The Insonitor and Inceptor likewise handle voice and button
+input respectively through their own pipelines.
 
 ### 12.3 Attention Synchronization
 

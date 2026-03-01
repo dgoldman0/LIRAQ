@@ -14,19 +14,19 @@ and mutate a live SML document.
 SML (see [01-sml](01-sml.md)) defines a serialization format — angle-bracket
 markup. The SOM defines what that markup becomes once parsed: a tree of typed
 nodes with attributes, parent-child relationships, and query interfaces. Every
-SML document, whether hand-authored or projected from UIDL, EXISTS as a SOM
+SML document, whether hand-authored or projected from UIDL, exists as a SOM
 tree at runtime.
 
 ### 1.1 Relationship to DOM
 
 The W3C DOM is a tree model for XML/HTML documents. SML is valid XML. An SML
-document CAN be parsed into a standard DOM tree, and standard DOM operations
+document can be parsed into a standard DOM tree, and standard DOM operations
 (`getElementById`, `querySelector`, `childNodes`, `setAttribute`,
 `MutationObserver`) work correctly on that tree.
 
-The SOM is therefore **DOM + 1D extensions**. It does not replace DOM — it
-layers on top of it. An implementation MAY use a W3C-conforming DOM as the
-underlying substrate and expose the SOM as an extended interface.
+The SOM is therefore **DOM + 1D extensions**. It layers on top of DOM. An
+implementation MAY use a W3C-conforming DOM as the underlying substrate and
+expose the SOM as an extended interface.
 
 | DOM provides | SOM adds |
 |-------------|----------|

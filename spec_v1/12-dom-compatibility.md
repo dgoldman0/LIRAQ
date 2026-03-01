@@ -253,7 +253,7 @@ Visual-Browser Surface Renderer
 ```
 
 The renderer listens for UIDL document mutations and incrementally updates the
-DOM. It does NOT re-render the entire tree on every change — it applies diffs.
+DOM by applying diffs.
 
 ---
 

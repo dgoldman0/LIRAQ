@@ -176,7 +176,7 @@ Keep the engine table but rename the column from `Output Model` to
 ### E.4 1D-UI — Why It's Here
 
 Short narrative on why 1D-UI is the most developed part: no existing
-standard addresses non-visual structured UIs from the document-authoring
+standard addresses structured 1D UIs from the document-authoring
 level. SML, CSL, SOM explained as the trio, but woven into a paragraph,
 not a bullet list.
 

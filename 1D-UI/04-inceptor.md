@@ -427,21 +427,23 @@ to detach from the previous SOM and attach to the new one.
 
 ## 10 LIRAQ Integration
 
-When running as part of the auditory surface within a LIRAQ runtime:
+When running within a LIRAQ runtime:
 
 ### 10.1 Bridge as Document Source
 
-The LIRAQ auditory surface bridge (see
-[14-auditory-surface](../spec_v1/14-auditory-surface.md)) produces a SOM tree
-from the UIDL projection pipeline. The SOM runtime manages this tree.
-Subsequent UIDL state changes arrive as SOM mutations.
+The 1D surface bridge (see
+[14-auditory-surface](../spec_v1/14-auditory-surface.md) for the auditory
+surface example) produces a SOM tree from the UIDL projection pipeline. The
+SOM runtime manages this tree. Subsequent UIDL state changes arrive as SOM
+mutations.
 
-The Inceptor attaches to the SOM tree and produces haptic output. It does
-not interact with the LIRAQ bridge directly — it observes SOM events.
+The Inceptor attaches to the SOM tree and produces haptic output and processes
+button/switch/touch input. It observes SOM events rather than interacting with
+the bridge directly.
 
 ### 10.2 Attention Synchronization
 
-When the LIRAQ runtime issues `set-attention` for the auditory surface, the
+When the LIRAQ runtime issues `set-attention` for the 1D surface, the
 SOM runtime translates it to `cursor.jumpTo(id)`, triggering the standard
 navigation sequence. The Inceptor responds with haptic output for the
 resulting cursor events.

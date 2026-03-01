@@ -363,9 +363,9 @@ states:
     opacity: 0.4
 ```
 
-### 4.3 Non-Visual Profiles
+### 4.3 1D-UI Profiles
 
-Profiles targeting non-visual capabilities follow the same structure with
+Profiles targeting 1D capabilities follow the same structure with
 different property vocabularies:
 
 ```yaml

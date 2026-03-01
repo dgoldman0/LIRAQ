@@ -6,16 +6,17 @@
 
 ## 1 Purpose
 
-SML is a markup language for one-dimensional, non-visual user interfaces. It
-describes **structure only**: what elements exist, how they nest, and what their
-concrete attributes are. SML is the auditory/haptic surface's document language,
-analogous to how a visual-browser surface targets HTML.
+SML is a markup language for one-dimensional user interfaces. It describes
+**structure only**: what elements exist, how they nest, and what their concrete
+attributes are. SML is the document language for any surface that navigates a
+sequence — audio, haptic, tactile-text, or a 1D visual bar.
 
-A single UIDL document is the source of truth for all surfaces. The auditory
-surface's projection pipeline (see [14-auditory-surface](../spec_v1/14-auditory-surface.md))
-maps UIDL elements onto SML nodes. By the time SML receives content, all data
-binding, conditionals, and collection iteration have already been resolved. SML
-contains **concrete values**, never expressions.
+A single UIDL document is the source of truth for all surfaces. A 1D surface's
+projection pipeline (see [14-auditory-surface](../spec_v1/14-auditory-surface.md)
+for the auditory surface example) maps UIDL elements onto SML nodes. By the
+time SML receives content, all data binding, conditionals, and collection
+iteration have already been resolved. SML contains **concrete values**, never
+expressions.
 
 SML uses angle-bracket XML syntax.
 
@@ -24,7 +25,7 @@ SML uses angle-bracket XML syntax.
 | Path | How it works |
 |------|-------------|
 | **Standalone** | Author SML directly with concrete values. No LIRAQ, no UIDL, no state tree. Like writing a static HTML page. |
-| **LIRAQ-integrated** | Author UIDL (with `bind`, `when`, `<collection>`). LIRAQ's surface manager projects through the auditory surface bridge → produces a concrete SML tree. SML never sees expressions. |
+| **LIRAQ-integrated** | Author UIDL (with `bind`, `when`, `<collection>`). LIRAQ's surface manager projects through a 1D surface bridge → produces a concrete SML tree. SML never sees expressions. |
 
 ### 1.2 Layer Responsibilities
 
@@ -34,7 +35,7 @@ SML uses angle-bracket XML syntax.
 | **CSL** | Presentation — how elements sound, feel, speak | `ind { cue-pitch: value-mapped; }` |
 | **Runtime** | Behavior — navigation, focus, interrupts, timers | Cursor movement, focus stack |
 | **UIDL** | Modality-neutral source (upstream) | `<label bind="=mail.count" />` |
-| **LIRAQ** | Projection — resolves UIDL bindings → concrete SML | Auditory surface bridge |
+| **LIRAQ** | Projection — resolves UIDL bindings → concrete SML | 1D surface bridge |
 
 An SML document is a static tree. By itself it is a complete, navigable
 interface. CSL styles the presentation. The runtime handles user interaction.
@@ -48,8 +49,8 @@ projection bridge, not as embedded expressions.
 ### 2.1 The Sequence
 
 Everything in SML is a sequence of positions. There is no spatial positioning,
-no grid, no float, no z-index. Document order IS navigation order. This is not
-a constraint — it is the defining feature. A 1D interface IS a sequence.
+no grid, no float, no z-index. Document order defines navigation order — the
+sequence is the interface.
 
 ### 2.2 Scope
 
@@ -64,29 +65,28 @@ come in four flavors:
 | **Gated** | `<gate>` | Locked: cursor bumps and hears "locked" cue. Unlocked: enters freely. |
 | **Trapped** | `<trap>` | Cannot exit except by dismissal (accept / reject / timeout) |
 
-A visual interface can show nested containers simultaneously. A 1D interface
-cannot — the user is always inside exactly one scope at a time. Scope enter/exit
-is therefore a first-class navigation event with transition cues, announcement
-templates, and focus memory.
+In a 1D interface the user occupies exactly one scope at a time. Scope
+enter/exit is therefore a first-class navigation event with transition cues,
+announcement templates, and focus memory.
 
 ### 2.3 Position
 
 A position is where the cursor can land. Every position has:
 
-- A **cue** — what the user hears/feels when the cursor arrives
-- A **label** — what gets spoken if the user requests verbal detail
+- A **cue** — what the user perceives when the cursor arrives
+- A **label** — content delivered on request (speech, braille text, visual text)
 - An **interaction type** — what happens on select:
   - Navigate-only (`<item>`) — follow a link, or nothing
   - Activate (`<act>`) — trigger an action
   - Edit (`<val>`) — enter edit mode, input context changes
   - Select (`<pick>`) — enter cycling mode, choose from options
-  - Read-only (`<ind>`) — speaks label + value, no interaction
-  - Temporal (`<tick>`) — speaks current value, changes over time
+  - Read-only (`<ind>`) — presents label + value, no interaction
+  - Temporal (`<tick>`) — presents current value, changes over time
 
 ### 2.4 Cue
 
-The cue is the primary feedback signal in a 1D interface. It is to 1D what
-visual appearance is to 2D: the fundamental way the user perceives an element.
+The cue is the primary feedback signal in a 1D interface — the fundamental way
+the user perceives an element at each navigation step.
 
 A cue delivers feedback across whichever I/O channels are active
 (see [03-sequential-object-model](03-sequential-object-model.md) §7):
@@ -99,7 +99,7 @@ SML declares cues two ways:
 1. **Structural** — `cue` attribute on elements, `<cue-def>` in head
 2. **Styled** — CSL selectors map to cue properties
 
-The split: markup declares WHAT gets cued; CSL declares HOW it sounds.
+The split: markup declares WHAT gets cued; CSL declares HOW it is presented.
 
 ### 2.5 Announcement
 
@@ -119,15 +119,15 @@ tree is projected from UIDL — the bridge can write extra attributes onto SML
 nodes from resolved UIDL bind values. Standalone SML only resolves variables
 derivable from the document tree.
 
-A visual interface does not need to announce scope entry — the user can see
-where they are. In 1D, the user must hear it. Announcements are structural
-because they define the scope's identity to the user.
+Announcements are structural because they define the scope's identity to the
+user. In a 1D interface the user cannot perceive surrounding context at a
+glance, so explicit scope-entry feedback is required.
 
 ### 2.6 Output Channels (Lanes)
 
-A visual interface renders all content simultaneously — the screen has enough
-area. A 1D audio interface has only one timeline. Multiple things cannot play
-at once without conflict, so output must be prioritized into channels:
+A 1D interface serializes output on a single timeline (for temporal channels)
+or a single viewport (for spatial channels). Multiple demands on the same
+channel conflict, so output must be prioritized:
 
 | Lane | Priority | Use |
 |------|----------|-----|
@@ -136,8 +136,8 @@ at once without conflict, so output must be prioritized into channels:
 | **interrupt** | Preemptive | Alerts, notifications |
 
 `<lane>` elements declare content that belongs to a specific output channel.
-Items inside a `<lane>` are NOT part of normal navigation — they play according
-to channel scheduling rules.
+Items inside a `<lane>` are excluded from normal navigation — they are
+presented according to channel scheduling rules.
 
 ### 2.7 Focus Memory
 
@@ -166,9 +166,8 @@ This context switching is fundamental to 1D interaction:
 | **Menu** | enter `<ring>` | next/prev = cycle, select = activate | back |
 | **Trapped** | enter `<trap>` | constrained to trap children | dismiss action |
 
-A visual interface handles this implicitly (click a text box, focus changes,
-keyboard input goes there). In 1D, context switching is explicit: the user
-enters a mode and the entire input interpretation changes.
+In 1D, context switching is explicit: the user enters a mode and the entire
+input interpretation changes.
 
 ### 2.9 Gating
 
@@ -181,23 +180,21 @@ This is different from:
 - `hidden` — removed from navigation entirely (user does not know it exists)
 - `disabled` — cursor lands but cannot activate
 
-A gate is a tangible barrier. The user learns: "there is something here I
-cannot access yet." A visual interface shows this with grayed-out panels. A 1D
-interface needs a structural barrier with distinct acoustic feedback.
+A gate is a tangible barrier. The user perceives: "there is something here I
+cannot access yet." The locked state has a distinct cue so the user knows the
+scope exists even when entry is denied.
 
 ### 2.10 Gap
 
-A `<gap>` is a temporal pause in the sequence — a non-navigable break. The user
-does not land on a gap; they hear it between positions. A short silence, a
-boundary cue, or a tone change that says "the next group of items is different
-from the previous." In a visual interface, a separator is a horizontal line
-(spatial). In 1D, a gap is a pause (temporal).
+A `<gap>` is a non-navigable break in the sequence. The user does not land on
+a gap; it is perceived between positions as a boundary cue — silence on the
+audio channel, a blank region on a braille display, a haptic pause, or a visual
+spacer on a 1D bar.
 
 ### 2.11 Confirmation
 
-Destructive or irreversible actions require confirmation. In a visual interface,
-a modal dialog appears. In 1D, a `<trap>` with accept / reject children
-structurally defines the flow:
+Destructive or irreversible actions require confirmation. A `<trap>` with
+accept / reject children structurally defines the flow:
 
 ```xml
 <act label="Delete all" verb="delete-all" confirm="true" />
@@ -514,9 +511,8 @@ Temporal counter. Declares a position whose value changes over time.
 
 Children: `<hint>`.
 
-A visual timer redraws digits — cheap and silent. A 1D timer changes the audio
-output and can trigger alerts at thresholds. The markup declares WHAT the timer
-is; the runtime makes it tick.
+A 1D timer updates the output for its position and can trigger interrupt alerts
+at thresholds. The markup declares WHAT the timer is; the runtime makes it tick.
 
 #### `<alert>`
 
@@ -564,8 +560,9 @@ user hears when the scope is entered, exited, or changed.
 When projected from UIDL, the bridge can write additional attributes onto SML
 nodes. Standalone SML resolves only tree-derived variables.
 
-No equivalent in visual markup — a visual interface does not need to verbally
-announce scope transitions because the user can see where they are.
+Scope transitions are structural in SML because the user cannot perceive
+surrounding context at a glance — explicit transition feedback is required
+regardless of which I/O channel delivers it.
 
 #### `<shortcut />`
 
@@ -980,17 +977,17 @@ These elements have no equivalent in visual markup languages:
 
 | Element | Why it exists in 1D |
 |---------|---------------------|
-| `<cue-def>` | Defines a sound inline. Visual languages define appearances in CSS; 1D defines auditory motifs as reusable named patterns. |
-| `<ring>` | Circular navigation with wrap-around. A visual interface shows all items simultaneously; in 1D, the sequence wraps and needs a boundary cue. |
-| `<gate>` | Perceptible locked barrier. A visual interface grays out a panel; a 1D interface needs a tangible bump with "locked" feedback. |
-| `<trap>` | Total modal confinement. A visual modal shows background content; a 1D trap gives ONLY the trap's children. |
-| `<announce>` | Scope entry narration. A visual interface does not narrate; the user can see where they are. |
-| `<lane>` | Output channel with priority. A visual interface renders all regions simultaneously; 1D serializes on a single timeline. |
-| `<gap>` | Temporal pause. A visual separator is a line; a 1D gap is silence or a boundary tone. |
-| `<hint>` | Dwell-triggered disclosure. A visual tooltip appears on hover (spatial); a 1D hint appears on pause (temporal). |
-| `<shortcut>` | Navigation topology in markup. In 1D, "pressing 1 goes to Inbox" is part of the interface structure. |
-| `<ind>` with pitch | Synesthetic feedback. Value-to-pitch mapping gives instant audio read without speech. |
-| `<tick>` with alerts | Temporal counter that fires interrupts at milestones. A visual timer redraws digits; a 1D timer changes audio output. |
+| `<cue-def>` | Defines a multi-channel feedback motif inline — audio waveform, haptic pattern, or both — as a reusable named pattern. |
+| `<ring>` | Circular navigation with wrap-around. The sequence wraps at boundaries, and a boundary cue signals the transition. |
+| `<gate>` | Perceptible locked barrier. The user knows the scope exists but receives a "locked" cue and cannot enter until the gate opens. |
+| `<trap>` | Total modal confinement. Navigation is restricted to the trap's children until dismissal. |
+| `<announce>` | Scope entry narration. In a 1D interface the user cannot perceive surrounding context, so transitions require explicit feedback. |
+| `<lane>` | Output channel with priority. A 1D interface serializes output, so concurrent demands must be prioritized into lanes. |
+| `<gap>` | Non-navigable break. A boundary cue (silence, blank cells, haptic pause, or visual spacer) between groups of positions. |
+| `<hint>` | Dwell-triggered progressive disclosure. The user pauses on a position and receives additional detail after a timeout. |
+| `<shortcut>` | Navigation topology in markup. "Pressing 1 goes to Inbox" is part of the interface structure. |
+| `<ind>` with pitch | Synesthetic feedback. Value-to-pitch mapping gives instant status indication without linguistic content. |
+| `<tick>` with alerts | Temporal counter that fires interrupts at milestones. Output updates as the value changes. |
 
 ---
 

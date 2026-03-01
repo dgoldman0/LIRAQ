@@ -21,7 +21,7 @@ address (see [03-sequential-object-model](03-sequential-object-model.md) §7).
 
 For LIRAQ-integrated applications, presentation profiles
 (see [07-presentation-profiles](../spec_v1/07-presentation-profiles.md)) define
-capability-specific properties in YAML. The auditory surface bridge translates
+capability-specific properties in YAML. A 1D surface bridge translates
 profile properties into CSL. For standalone SML applications, CSL is authored
 directly. Both paths produce the same resolved property sets.
 
